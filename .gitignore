@@ -1,0 +1,7 @@
+# Godot 4+ specific ignores
+.godot/
+.DS_Store
+
+# Self-contained 414MB macOS app bundle is distributed via GitHub Releases
+Solstice Spire.app/
+*.zip

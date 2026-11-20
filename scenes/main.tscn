@@ -1,0 +1,92 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/atmosphere/biome_atmosphere.gd" id="2_atmo"]
+[ext_resource type="Script" path="res://scripts/worlds/spire_world.gd" id="3_spire"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="4_player"]
+[ext_resource type="Shader" path="res://assets/shaders/stylized_sky.gdshader" id="5_sky"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sky"]
+shader = ExtResource("5_sky")
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ShaderMaterial_sky")
+process_mode = 2
+radiance_size = 2
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_diorama"]
+dof_blur_far_enabled = true
+dof_blur_far_distance = 12.0
+dof_blur_far_transition = 14.0
+dof_blur_amount = 0.14
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_color = Color(0.32, 0.46, 0.68, 1)
+ambient_light_sky_contribution = 0.34
+ambient_light_energy = 0.46
+tonemap_mode = 4
+tonemap_exposure = 0.94
+ssao_enabled = true
+ssao_radius = 1.6
+ssao_intensity = 1.70
+ssil_enabled = false
+glow_enabled = true
+glow_normalized = true
+glow_intensity = 0.30
+glow_strength = 0.68
+glow_bloom = 0.08
+glow_hdr_threshold = 1.35
+glow_blend_mode = 2
+fog_enabled = true
+fog_mode = 0
+fog_light_color = Color(0.58, 0.74, 0.88, 1)
+fog_light_energy = 0.85
+fog_density = 0.0012
+fog_sky_affect = 0.16
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.0032
+volumetric_fog_albedo = Color(0.96, 0.90, 0.78, 1)
+volumetric_fog_emission = Color(0.10, 0.14, 0.22, 1)
+volumetric_fog_emission_energy = 0.24
+volumetric_fog_anisotropy = 0.55
+volumetric_fog_length = 95.0
+volumetric_fog_sky_affect = 0.12
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="BiomeAtmosphere" type="Node3D" parent="." node_paths=PackedStringArray("world_environment", "sun_light")]
+script = ExtResource("2_atmo")
+world_environment = NodePath("WorldEnvironment")
+sun_light = NodePath("SunLight")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="BiomeAtmosphere"]
+environment = SubResource("Environment_main")
+
+[node name="SunLight" type="DirectionalLight3D" parent="BiomeAtmosphere"]
+transform = Transform3D(0.848, -0.326, 0.418, 0.0, 0.788, 0.616, -0.530, -0.522, 0.668, 0, 40, 0)
+light_color = Color(1, 0.95, 0.78, 1)
+light_energy = 1.65
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_blur = 1.4
+directional_shadow_mode = 1
+directional_shadow_split_1 = 0.18
+directional_shadow_max_distance = 85.0
+
+[node name="SpireWorld" type="Node3D" parent="."]
+script = ExtResource("3_spire")
+
+[node name="Player" parent="." instance=ExtResource("4_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 26)
+
+[node name="CharacterDiorama" type="Node3D" parent="."]
+
+[node name="DioramaCamera" type="Camera3D" parent="CharacterDiorama"]
+attributes = SubResource("CameraAttributesPractical_diorama")
+fov = 44.0
+near = 0.08
+far = 260.0
