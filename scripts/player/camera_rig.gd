@@ -45,21 +45,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func update_rig(target_pos: Vector3, player_vel: Vector3, flow: float, wall_roll_deg: float, is_dashing: bool, delta: float) -> void:
-	# Apply iPhone DualSense Right-Stick Orbit + Direct Touchpad/Thumb-Drag/Gyro Look Delta
+	# Apply iPhone DualSense Right-Stick Orbit + Direct Touchpad/Thumb-Drag Look Delta using exact 1:1 Mac mouse_sensitivity
 	if GameState.is_playing and not GameState.is_paused and PhoneController.is_active():
-		var sens_mult := GameState.mouse_sensitivity / 0.0024
+		var sens := GameState.mouse_sensitivity
 		var y_sign := 1.0 if GameState.invert_y else -1.0
 		var look_d := PhoneController.consume_look_delta()
 		if look_d.length_squared() > 0.0001:
-			var drag_sens := GameState.mouse_sensitivity * 1.45
-			yaw -= look_d.x * drag_sens
-			pitch += look_d.y * drag_sens * y_sign
+			yaw -= look_d.x * sens
+			pitch += look_d.y * sens * y_sign
 		var r_stick := PhoneController.get_look_stick()
 		if r_stick.length_squared() > 0.001:
-			var sx := signf(r_stick.x) * pow(absf(r_stick.x), 1.55)
-			var sy := signf(r_stick.y) * pow(absf(r_stick.y), 1.55)
-			yaw -= sx * 3.1 * sens_mult * delta
-			pitch += sy * 2.2 * sens_mult * y_sign * delta
+			var stick_rate := sens * 1000.0
+			yaw -= r_stick.x * stick_rate * delta
+			pitch += r_stick.y * stick_rate * y_sign * delta
 		pitch = clampf(pitch, deg_to_rad(pitch_min_deg), deg_to_rad(pitch_max_deg))
 
 	# Smoothly follow target with subtle vertical responsiveness and landing dip spring

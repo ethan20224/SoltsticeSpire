@@ -92,7 +92,6 @@ var _flow_decay_delay: float = 0.0
 var _step_timer: float = 0.0
 var _was_on_floor: bool = true
 var _landing_ring_mat: ShaderMaterial
-var _analog_speed_scale: float = 1.0
 
 var controls_enabled: bool = true
 
@@ -167,14 +166,12 @@ func _physics_process(delta: float) -> void:
 		begin_rewind_respawn(false)
 		return
 
-	# Input sampling (Keyboard WASD + iPhone DualSense Left Analog Thumbstick)
+	# Input sampling (Keyboard WASD + iPhone DualSense Left Analog Thumbstick — identical 1:1 speed)
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	_analog_speed_scale = 1.0
 	if PhoneController.is_active():
 		var p_vec := PhoneController.get_move_vector()
 		if p_vec.length_squared() > input_vec.length_squared():
 			input_vec = p_vec
-			_analog_speed_scale = clampf(p_vec.length(), 0.42, 1.0)
 	var cam_fwd := camera_rig.get_forward_xz()
 	var cam_right := camera_rig.get_right_xz()
 	var move_dir := (cam_right * input_vec.x - cam_fwd * input_vec.y)
@@ -279,8 +276,7 @@ func _physics_process(delta: float) -> void:
 
 func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 	var sprinting := Input.is_action_pressed("sprint") or PhoneController.is_sprint_active() or flow_value > 0.45
-	var base_spd := (sprint_speed if sprinting else (walk_speed * _analog_speed_scale))
-	var max_spd := base_spd + flow_value * flow_speed_bonus
+	var max_spd := (sprint_speed if sprinting else walk_speed) + flow_value * flow_speed_bonus
 
 	# Slide-Dive entry (C / Ctrl / iPhone ○ or L2 while running!)
 	var phone_slide := PhoneController.consume_slide_just_pressed()

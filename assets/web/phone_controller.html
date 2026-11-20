@@ -1406,13 +1406,13 @@
       state.mx = 0;
       state.my = 0;
     } else {
-      const rescaled = (norm - 0.10) / 0.90;
-      state.mx = Math.cos(angle) * rescaled;
-      state.my = Math.sin(angle) * rescaled;
+      // Exact 1:1 full movement speed matching Mac WASD keyboard
+      state.mx = Math.cos(angle);
+      state.my = Math.sin(angle);
     }
 
     const wasSprinting = state.auto_sprint;
-    state.auto_sprint = norm > 0.76;
+    state.auto_sprint = norm > 0.65;
     if (state.auto_sprint && !wasSprinting) {
       triggerHaptic('tap');
     }
@@ -1501,10 +1501,6 @@
       state.cx = Math.cos(angle) * rescaled;
       state.cy = Math.sin(angle) * rescaled;
     }
-
-    // Also add responsive micro-trackpad delta on initial movement
-    state.ldx += (clientX - rightPrev.x) * 0.45;
-    state.ldy += (clientY - rightPrev.y) * 0.45;
     rightPrev = { x: clientX, y: clientY };
   }
 
@@ -1561,7 +1557,7 @@
   const touchpadZone = document.getElementById('touchpad-zone');
   const activeLookTouches = new Map();
 
-  function attachLookTrackpad(element, sensitivity = 1.35) {
+  function attachLookTrackpad(element, sensitivity = 1.0) {
     element.addEventListener('touchstart', (e) => {
       if (e.target.closest('button')) return;
       for (let i = 0; i < e.changedTouches.length; i++) {
@@ -1592,8 +1588,8 @@
     element.addEventListener('touchcancel', endTrack, { passive: true });
   }
 
-  attachLookTrackpad(touchpadZone, 1.55);
-  attachLookTrackpad(document.getElementById('right-look-zone'), 1.25);
+  attachLookTrackpad(touchpadZone, 1.0);
+  attachLookTrackpad(document.getElementById('right-look-zone'), 1.0);
 
   // --- Action Buttons with Look-While-Holding & Instant Edge Latching ---
   function bindHoldButton(el, stateKey, eventName, hapticKind) {
@@ -1617,9 +1613,9 @@
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier === activeTouch && prevPos) {
-          // Allow thumb-drag camera orbit while holding Jump/Dash/Slide!
-          state.ldx += (t.clientX - prevPos.x) * 1.15;
-          state.ldy += (t.clientY - prevPos.y) * 1.15;
+          // Exact 1:1 camera look delta while holding Jump/Dash/Slide
+          state.ldx += (t.clientX - prevPos.x);
+          state.ldy += (t.clientY - prevPos.y);
           prevPos = { x: t.clientX, y: t.clientY };
         }
       }
