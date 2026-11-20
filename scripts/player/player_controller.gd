@@ -92,6 +92,7 @@ var _flow_decay_delay: float = 0.0
 var _step_timer: float = 0.0
 var _was_on_floor: bool = true
 var _landing_ring_mat: ShaderMaterial
+var _analog_speed_scale: float = 1.0
 
 var controls_enabled: bool = true
 
@@ -161,15 +162,27 @@ func _physics_process(delta: float) -> void:
 		begin_rewind_respawn(true)
 		return
 
-	# Input sampling
+	# Check remote Shrine Rewind button from iPhone DualSense controller
+	if PhoneController.consume_rewind_just_pressed() and state != State.REWIND:
+		begin_rewind_respawn(false)
+		return
+
+	# Input sampling (Keyboard WASD + iPhone DualSense Left Analog Thumbstick)
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	_analog_speed_scale = 1.0
+	if PhoneController.is_active():
+		var p_vec := PhoneController.get_move_vector()
+		if p_vec.length_squared() > input_vec.length_squared():
+			input_vec = p_vec
+			_analog_speed_scale = clampf(p_vec.length(), 0.42, 1.0)
 	var cam_fwd := camera_rig.get_forward_xz()
 	var cam_right := camera_rig.get_right_xz()
 	var move_dir := (cam_right * input_vec.x - cam_fwd * input_vec.y)
 	if move_dir.length_squared() > 0.001:
 		move_dir = move_dir.normalized()
 
-	if Input.is_action_just_pressed("jump"):
+	var phone_jump_pressed := PhoneController.consume_jump_just_pressed()
+	if Input.is_action_just_pressed("jump") or phone_jump_pressed:
 		_jump_buffer_timer = jump_buffer_time
 	else:
 		_jump_buffer_timer = maxf(0.0, _jump_buffer_timer - delta)
@@ -177,9 +190,10 @@ func _physics_process(delta: float) -> void:
 	# Refresh best tether orb in sight for HUD lock-on indicator & context-smart Dash/Tether input
 	_hovered_tether_orb = _find_best_tether_orb()
 
-	# Dash / Tether Zip Trigger (E, Q, Right-Click, or Shift in mid-air / locked onto a tether orb)
+	# Dash / Tether Zip Trigger (E, Q, Right-Click, Shift in mid-air, or iPhone □ / R2)
 	var shift_air_dash := Input.is_action_just_pressed("sprint") and (not is_on_floor() or _hovered_tether_orb != null)
-	if Input.is_action_just_pressed("dash") or shift_air_dash:
+	var phone_dash_pressed := PhoneController.consume_dash_just_pressed()
+	if Input.is_action_just_pressed("dash") or shift_air_dash or phone_dash_pressed:
 		if _hovered_tether_orb != null:
 			_start_tether_zip(_hovered_tether_orb)
 			return
@@ -219,6 +233,7 @@ func _physics_process(delta: float) -> void:
 			char_rig.emit_burst(Vector3(0.0, 0.05, 0.0))
 			camera_rig.add_land_dip(0.18)
 			AudioDirector.play_sfx("land_thud", -5.0, randf_range(0.92, 1.08))
+			PhoneController.send_haptic("land")
 	else:
 		_coyote_timer = maxf(0.0, _coyote_timer - delta)
 		if state == State.GROUNDED:
@@ -263,11 +278,13 @@ func _physics_process(delta: float) -> void:
 
 
 func _process_standard_move(move_dir: Vector3, delta: float) -> void:
-	var sprinting := Input.is_action_pressed("sprint") or flow_value > 0.45
-	var max_spd := (sprint_speed if sprinting else walk_speed) + flow_value * flow_speed_bonus
+	var sprinting := Input.is_action_pressed("sprint") or PhoneController.is_sprint_active() or flow_value > 0.45
+	var base_spd := (sprint_speed if sprinting else (walk_speed * _analog_speed_scale))
+	var max_spd := base_spd + flow_value * flow_speed_bonus
 
-	# Slide-Dive entry (C / Ctrl while running!)
-	if is_on_floor() and Input.is_action_just_pressed("slide") and Vector2(velocity.x, velocity.z).length() > 5.0:
+	# Slide-Dive entry (C / Ctrl / iPhone ○ or L2 while running!)
+	var phone_slide := PhoneController.consume_slide_just_pressed()
+	if is_on_floor() and (Input.is_action_just_pressed("slide") or phone_slide) and (Vector2(velocity.x, velocity.z).length() > 4.2 or move_dir.length_squared() > 0.2):
 		state = State.SLIDE
 		_slide_timer = slide_duration
 		_slide_dir = move_dir if move_dir.length_squared() > 0.01 else Vector3(velocity.x, 0.0, velocity.z).normalized()
@@ -276,6 +293,7 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 		char_rig.trigger_squash(Vector3(1.26, 0.68, 1.26))
 		char_rig.emit_burst(Vector3(0.0, 0.1, 0.0))
 		AudioDirector.play_sfx("slide", -4.0, randf_range(0.95, 1.08))
+		PhoneController.send_haptic("slide")
 		return
 
 	# Horizontal acceleration/deceleration (crisp on ground, responsive in air)
@@ -307,6 +325,7 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			char_rig.trigger_squash(Vector3(0.80, 1.26, 0.80))
 			char_rig.emit_burst(Vector3(0.0, 0.08, 0.0))
 			AudioDirector.play_sfx("jump", -3.0, randf_range(0.96, 1.06))
+			PhoneController.send_haptic("jump")
 		elif _has_double_jump:
 			velocity.y = double_jump_velocity
 			_has_double_jump = false
@@ -314,6 +333,7 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			state = State.AIR
 			char_rig.trigger_double_jump_flip()
 			AudioDirector.play_sfx("double_jump", -2.5, randf_range(0.98, 1.08))
+			PhoneController.send_haptic("double_jump")
 
 	# Asymmetric Crisp Gravity + Apex Hang-Time!
 	if not is_on_floor():
@@ -323,7 +343,8 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 		elif velocity.y < 0.0:
 			g = gravity_down
 		# Short-hop variable jump height if Jump released early
-		if velocity.y > 4.0 and not Input.is_action_pressed("jump"):
+		var jump_held := Input.is_action_pressed("jump") or PhoneController.is_jump_held()
+		if velocity.y > 4.0 and not jump_held:
 			g *= 1.55
 		velocity.y -= g * gravity_multiplier * delta
 		velocity.y = maxf(velocity.y, -38.0)
@@ -354,6 +375,7 @@ func _process_slide(move_dir: Vector3, delta: float) -> void:
 		char_rig.emit_burst(Vector3(0.0, 0.12, 0.0))
 		camera_rig.add_shake(0.22)
 		AudioDirector.play_sfx("jump", -1.5, 1.18)
+		PhoneController.send_haptic("jump")
 		return
 
 	if _slide_timer <= 0.0 or not is_on_floor():
@@ -375,6 +397,7 @@ func _start_dash(dir: Vector3) -> void:
 	camera_rig.add_shake(0.32)
 	camera_rig.trigger_hitstop(0.025)
 	AudioDirector.play_sfx("dash", -1.5, randf_range(0.96, 1.06))
+	PhoneController.send_haptic("dash")
 
 
 func _process_dash(delta: float) -> void:
@@ -464,6 +487,7 @@ func _process_wall_run(_move_dir: Vector3, delta: float) -> void:
 			_wall_run_node.on_wall_kick()
 		else:
 			AudioDirector.play_sfx("wall_kick", -1.5, randf_range(0.96, 1.08))
+		PhoneController.send_haptic("wall_kick")
 
 
 func _try_start_mantle(move_dir: Vector3) -> bool:
@@ -548,6 +572,7 @@ func _start_tether_zip(orb: Node3D) -> void:
 	camera_rig.trigger_hitstop(0.025)
 	char_rig.emit_burst(Vector3(0.0, 0.6, 0.0))
 	AudioDirector.play_sfx("tether_zip", -1.0, randf_range(0.96, 1.12))
+	PhoneController.send_haptic("tether")
 	if orb.has_method("pulse_activate"):
 		orb.pulse_activate()
 
@@ -581,6 +606,7 @@ func begin_rewind_respawn(count_as_fall: bool = true) -> void:
 	_rewind_t = 0.0
 	velocity = Vector3.ZERO
 	AudioDirector.play_sfx("rewind", -2.0, 1.0)
+	PhoneController.send_haptic("rewind")
 	camera_rig.add_shake(0.25)
 
 

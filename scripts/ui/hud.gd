@@ -22,7 +22,9 @@ var _toast_sub: Label
 var _toast_timer: float = 0.0
 
 var _tether_reticle: PanelContainer
+var _tether_label: Label
 var _whisper_panel: PanelContainer
+var _whisper_row: HBoxContainer
 var _whisper_timer: float = 6.0
 
 var player_ref: PlayerController
@@ -37,6 +39,12 @@ func _ready() -> void:
 	GameState.flow_changed.connect(_on_flow)
 	GameState.shard_collected.connect(_on_shards)
 	GameState.fall_recorded.connect(_on_falls)
+	PhoneController.connection_changed.connect(func(_c: bool, _cnt: int, _dev: String):
+		_refresh_control_hints(true)
+	)
+	PhoneController.mode_changed.connect(func(_u: bool):
+		_refresh_control_hints(true)
+	)
 
 
 func _build_hud() -> void:
@@ -162,22 +170,10 @@ func _build_hud() -> void:
 	_whisper_panel.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 999, 18, 6, 1))
 	add_child(_whisper_panel)
 
-	var wh := HBoxContainer.new()
-	wh.alignment = BoxContainer.ALIGNMENT_CENTER
-	wh.add_theme_constant_override("separation", 20)
-	_whisper_panel.add_child(wh)
-	for pair in [["Space", "Jump / Wall-Kick"], ["Shift", "Sprint"], ["C", "Slide Jump"], ["E / RMB", "Air-Dash"], ["Esc", "Menu"]]:
-		var pair_h := HBoxContainer.new()
-		pair_h.add_theme_constant_override("separation", 6)
-		var kl := Label.new()
-		kl.text = pair[0]
-		UITheme.apply_font(kl, "bold", 12, UITheme.ACCENT_AMBER)
-		var vl := Label.new()
-		vl.text = pair[1]
-		UITheme.apply_font(vl, "medium", 12, UITheme.INK_SECONDARY)
-		pair_h.add_child(kl)
-		pair_h.add_child(vl)
-		wh.add_child(pair_h)
+	_whisper_row = HBoxContainer.new()
+	_whisper_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_whisper_row.add_theme_constant_override("separation", 20)
+	_whisper_panel.add_child(_whisper_row)
 
 	# BORDERLESS CENTERED REALM ARRIVAL BANNER OVER SOFT RADIAL SCRIM (no clunky dark box!)
 	_toast_root = Control.new()
@@ -230,11 +226,43 @@ func _build_hud() -> void:
 	_tether_reticle.visible = false
 	_tether_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tether_reticle.add_theme_stylebox_override("panel", UITheme.glass_box(Color(0.08, 0.16, 0.24, 0.86), Color(0.45, 0.94, 1.0, 0.92), 999, 14, 6, 2))
-	var rl := Label.new()
-	rl.text = "E / RMB  Snap"
-	UITheme.apply_font(rl, "bold", 12, Color(0.68, 0.98, 1.0))
-	_tether_reticle.add_child(rl)
+	_tether_label = Label.new()
+	_tether_label.text = "E / RMB  Snap"
+	UITheme.apply_font(_tether_label, "bold", 12, Color(0.68, 0.98, 1.0))
+	_tether_reticle.add_child(_tether_label)
 	add_child(_tether_reticle)
+
+	_refresh_control_hints(false)
+
+
+func _refresh_control_hints(reset_timer: bool) -> void:
+	if _whisper_row == null:
+		return
+	for ch in _whisper_row.get_children():
+		ch.queue_free()
+	var use_phone := PhoneController.is_connected or PhoneController.use_phone_controller
+	var pairs := (
+		[["✕ / R1", "Jump / Wall-Kick"], ["L-Stick", "Outer Sprint"], ["○ / L2", "Slide Jump"], ["□ / R2", "Air-Dash"], ["≡", "Menu"]]
+		if use_phone else
+		[["Space", "Jump / Wall-Kick"], ["Shift", "Sprint"], ["C", "Slide Jump"], ["E / RMB", "Air-Dash"], ["Esc", "Menu"]]
+	)
+	for pair in pairs:
+		var pair_h := HBoxContainer.new()
+		pair_h.add_theme_constant_override("separation", 6)
+		var kl := Label.new()
+		kl.text = pair[0]
+		UITheme.apply_font(kl, "bold", 12, UITheme.ACCENT_AMBER)
+		var vl := Label.new()
+		vl.text = pair[1]
+		UITheme.apply_font(vl, "medium", 12, UITheme.INK_SECONDARY)
+		pair_h.add_child(kl)
+		pair_h.add_child(vl)
+		_whisper_row.add_child(pair_h)
+	if _tether_label:
+		_tether_label.text = "□ / R2  Snap" if use_phone else "E / RMB  Snap"
+	if reset_timer:
+		_whisper_timer = 6.0
+		_whisper_panel.modulate.a = 1.0
 
 
 func show_world_toast(idx: int, wname: String, sub: String) -> void:
@@ -318,6 +346,7 @@ func _process(delta: float) -> void:
 
 	if player_ref and is_instance_valid(player_ref):
 		var orb := player_ref.get_hovered_tether_orb()
+		PhoneController.set_orb_locked(orb != null)
 		var cam := get_viewport().get_camera_3d()
 		if orb and cam and not cam.is_position_behind(orb.global_position):
 			var sp := cam.unproject_position(orb.global_position)

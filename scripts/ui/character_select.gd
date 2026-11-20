@@ -3,11 +3,13 @@ class_name CharacterSelectUI
 ## Airy, Tactile Title & Live 3D Character Select Overlay.
 ## Uses OFL Nunito typography, soft left-side radial scrim (zero harsh outlines!),
 ## warm cream selected chip vs sole honey-amber primary CTA, leaving 85%+ of the diorama unobstructed!
+## Includes top-right Controller Mode Selector (Keyboard & Mouse vs iPhone 15 DualSense QR Deck).
 
 signal character_highlighted(char_id: String)
 signal ascent_started()
 
 const ORDER := ["pip", "koko", "vesper"]
+const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
 
 var _card_buttons: Dictionary = {}
 var _name_label: Label
@@ -15,6 +17,10 @@ var _title_label: Label
 var _tagline_label: Label
 var _hero_block: VBoxContainer
 var _bottom_dock: VBoxContainer
+var _ctrl_dock: VBoxContainer
+var _kb_mode_btn: Button
+var _phone_mode_btn: Button
+var _pairing_panel: PanelContainer
 var _selected_id: String = "pip"
 
 
@@ -23,6 +29,18 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_ui()
 	_select_character(GameState.selected_character, false)
+	GameState.character_changed.connect(func(cid: String):
+		if cid != _selected_id:
+			_select_character(cid, true)
+	)
+	PhoneController.mode_changed.connect(_on_phone_mode_changed)
+	PhoneController.connection_changed.connect(func(_c: bool, _cnt: int, _dev: String):
+		_refresh_controller_mode_buttons()
+	)
+	PhoneController.remote_begin_ascent.connect(func():
+		if visible:
+			_on_begin_pressed()
+	)
 
 
 func _build_ui() -> void:
@@ -51,6 +69,64 @@ func _build_ui() -> void:
 	lead.text = "Choose your explorer and climb above the clouds."
 	UITheme.apply_font(lead, "semibold", 18, UITheme.INK_PRIMARY, 0.38, 2)
 	_hero_block.add_child(lead)
+
+	# TOP-RIGHT CONTROLLER MODE SELECTOR + EXPANDABLE IPHONE QR PAIRING CARD
+	_ctrl_dock = VBoxContainer.new()
+	_ctrl_dock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_ctrl_dock.offset_left = -384
+	_ctrl_dock.offset_right = -42
+	_ctrl_dock.offset_top = 34
+	_ctrl_dock.offset_bottom = 520
+	_ctrl_dock.add_theme_constant_override("separation", 10)
+	_ctrl_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_ctrl_dock)
+
+	var mode_pill := PanelContainer.new()
+	mode_pill.size_flags_horizontal = Control.SIZE_SHRINK_END
+	mode_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 999, 14, 8, 1))
+	_ctrl_dock.add_child(mode_pill)
+
+	var mode_row := HBoxContainer.new()
+	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	mode_row.add_theme_constant_override("separation", 8)
+	mode_pill.add_child(mode_row)
+
+	var mode_lbl := Label.new()
+	mode_lbl.text = "Controls"
+	UITheme.apply_font(mode_lbl, "bold", 12, UITheme.INK_SECONDARY)
+	mode_row.add_child(mode_lbl)
+
+	_kb_mode_btn = Button.new()
+	_kb_mode_btn.text = "Mac Keyboard"
+	_kb_mode_btn.custom_minimum_size = Vector2(124, 34)
+	_kb_mode_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.0)
+		PhoneController.set_phone_mode(false)
+	)
+	mode_row.add_child(_kb_mode_btn)
+
+	_phone_mode_btn = Button.new()
+	_phone_mode_btn.text = "iPhone Controller"
+	_phone_mode_btn.custom_minimum_size = Vector2(146, 34)
+	_phone_mode_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.15)
+		if PhoneController.use_phone_controller and _pairing_panel.visible:
+			_pairing_panel.visible = false
+			PhoneController.set_phone_mode(false)
+		else:
+			PhoneController.set_phone_mode(true)
+			_pairing_panel.visible = true
+			UITheme.animate_enter(_pairing_panel, 0.0, 0.22)
+	)
+	mode_row.add_child(_phone_mode_btn)
+
+	_pairing_panel = PairingPanelScript.new(false)
+	_pairing_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_pairing_panel.custom_minimum_size = Vector2(310, 0)
+	_pairing_panel.visible = PhoneController.use_phone_controller
+	_ctrl_dock.add_child(_pairing_panel)
+
+	_refresh_controller_mode_buttons()
 
 	# BOTTOM AIRY FLOATING SELECTOR DOCK
 	_bottom_dock = VBoxContainer.new()
@@ -117,7 +193,29 @@ func _build_ui() -> void:
 
 func play_intro_stagger() -> void:
 	UITheme.animate_enter(_hero_block, 0.0, 0.24)
-	UITheme.animate_enter(_bottom_dock, 0.06, 0.24)
+	UITheme.animate_enter(_ctrl_dock, 0.04, 0.24)
+	UITheme.animate_enter(_bottom_dock, 0.08, 0.24)
+
+
+func _on_phone_mode_changed(use_phone: bool) -> void:
+	_refresh_controller_mode_buttons()
+	if use_phone and not _pairing_panel.visible:
+		_pairing_panel.visible = true
+		UITheme.animate_enter(_pairing_panel, 0.0, 0.22)
+	elif not use_phone:
+		_pairing_panel.visible = false
+
+
+func _refresh_controller_mode_buttons() -> void:
+	if _kb_mode_btn == null or _phone_mode_btn == null:
+		return
+	var phone_active := PhoneController.use_phone_controller
+	UITheme.style_secondary_pill(_kb_mode_btn, not phone_active, 13)
+	UITheme.style_secondary_pill(_phone_mode_btn, phone_active, 13)
+	if PhoneController.is_connected:
+		_phone_mode_btn.text = "● iPhone Connected"
+	else:
+		_phone_mode_btn.text = "iPhone Controller"
 
 
 func _select_character(cid: String, play_sound: bool) -> void:

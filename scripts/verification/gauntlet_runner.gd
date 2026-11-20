@@ -7,7 +7,7 @@ class_name GauntletRunner
 ##    PLUS establishing wide shots for Worlds 1-6, and the panoramic Summit Look-Down vista!
 ## 3. Measures BOTH vsync-enabled and VSYNC_DISABLED true GPU frame time / FPS on Apple M2!
 
-const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/93e2aa3e-b03b-4c5f-b384-9c805a599d9c/scratch/gauntlet"
+const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/2fb05da4-466f-49ac-bf17-8429bf09d3e4/scratch/gauntlet"
 
 
 func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerController,
@@ -15,6 +15,7 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 		_diorama_models: Dictionary, diorama_cam: Camera3D) -> void:
 	DirAccess.make_dir_recursive_absolute(OUT_DIR)
 	print("================ SOLSTICE SPIRE GAUNTLET AUDIT ================")
+	print("[GAUNTLET] PhoneController Embedded Server listening on: %s" % PhoneController.get_active_url())
 
 	# 1. Automated Kinematics & Reachability Audit
 	var report := ReachabilityAudit.run_audit(spire.reachability_audit)
@@ -39,6 +40,10 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 		atmo.world_environment.environment.volumetric_fog_length = 40.0
 	diorama_cam.far = 260.0
 	await _snap("01_title_diorama.png")
+
+	# Shot 1b: Title Diorama with iPhone 15 DualSense QR Pairing Card active
+	PhoneController.set_phone_mode(true)
+	await _snap("01b_title_phone_qr.png")
 	var fps_diorama := await _measure_fps("TitleDiorama")
 
 	# Shot 2: Tight Portrait Close-Up of ALL THREE heroes + Pip's glowing ember lantern!

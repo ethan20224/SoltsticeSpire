@@ -19,6 +19,7 @@ buses/default_bus_layout="res://default_bus_layout.tres"
 
 GameState="*res://scripts/autoload/game_state.gd"
 AudioDirector="*res://scripts/autoload/audio_director.gd"
+PhoneController="*res://scripts/autoload/phone_controller.gd"
 
 [display]
 

@@ -1,15 +1,20 @@
 extends Control
 class_name PauseMenuUI
 ## Tactile Warm-Walnut Pause Overlay with OFL Nunito typography, Live Explorer Swap,
-## Realm Fast-Travel, live numeric Sensitivity/Volume sliders, and clean 200ms TRANS_EXPO reveal.
+## Realm Fast-Travel, iPhone 15 DualSense QR Pairing Dock, live Sensitivity/Volume sliders,
+## and clean 200ms TRANS_EXPO reveal.
 
 signal resume_requested()
 signal world_teleport_requested(world_idx: int)
 signal restart_requested()
 signal title_requested()
 
+const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
+
 var _card: PanelContainer
 var _char_btns: Dictionary = {}
+var _kb_btn: Button
+var _phone_btn: Button
 var _sens_val_lbl: Label
 var _mus_val_lbl: Label
 
@@ -20,11 +25,14 @@ func _ready() -> void:
 	visible = false
 	_build_menu()
 	GameState.character_changed.connect(func(_c): _refresh_char_buttons())
+	PhoneController.mode_changed.connect(func(_u): _refresh_ctrl_mode_buttons())
+	PhoneController.connection_changed.connect(func(_c, _n, _d): _refresh_ctrl_mode_buttons())
 
 
 func open_animated() -> void:
 	visible = true
 	_refresh_char_buttons()
+	_refresh_ctrl_mode_buttons()
 	UITheme.animate_enter(_card, 0.0, 0.20)
 
 
@@ -40,18 +48,18 @@ func _build_menu() -> void:
 	add_child(center)
 
 	_card = PanelContainer.new()
-	_card.custom_minimum_size = Vector2(820, 0)
-	_card.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_SOLID, Color(0.96, 0.86, 0.70, 0.28), 26, 28, 20, 1))
+	_card.custom_minimum_size = Vector2(1080, 0)
+	_card.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_SOLID, Color(0.96, 0.86, 0.70, 0.28), 26, 26, 20, 1))
 	center.add_child(_card)
 
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
-	_card.add_child(v)
+	var outer_v := VBoxContainer.new()
+	outer_v.add_theme_constant_override("separation", 12)
+	_card.add_child(outer_v)
 
 	# Header: Clean tracked eyebrow (no pill clutter!) + Heavy Nunito Title
 	var header := VBoxContainer.new()
 	header.add_theme_constant_override("separation", 1)
-	v.add_child(header)
+	outer_v.add_child(header)
 
 	var eyebrow := Label.new()
 	eyebrow.text = "Paused"
@@ -64,6 +72,16 @@ func _build_menu() -> void:
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UITheme.apply_font(h, "heavy", 28, UITheme.INK_PRIMARY)
 	header.add_child(h)
+
+	# Main 2-Column Body: Left = Game & Realm Controls | Right = iPhone 15 DualSense QR Pairing Dock
+	var body_cols := HBoxContainer.new()
+	body_cols.add_theme_constant_override("separation", 20)
+	outer_v.add_child(body_cols)
+
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 10)
+	body_cols.add_child(v)
 
 	var resume_b := Button.new()
 	resume_b.text = "Resume Ascent"
@@ -128,11 +146,11 @@ func _build_menu() -> void:
 	v.add_child(inst_lbl)
 
 	var inst_box := PanelContainer.new()
-	inst_box.add_theme_stylebox_override("panel", UITheme.glass_box(Color(0.06, 0.05, 0.065, 0.68), UITheme.BORDER_SUBTLE, 14, 16, 12, 1))
+	inst_box.add_theme_stylebox_override("panel", UITheme.glass_box(Color(0.06, 0.05, 0.065, 0.68), UITheme.BORDER_SUBTLE, 14, 14, 10, 1))
 	v.add_child(inst_box)
 
 	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 20)
+	cols.add_theme_constant_override("separation", 16)
 	inst_box.add_child(cols)
 
 	# LEFT COLUMN: Gameplay Instructions (How to Play)
@@ -151,7 +169,7 @@ func _build_menu() -> void:
 		["Sky Shrines:", "Touch glowing white-gold shrines to save your checkpoint."],
 		["Sun-Shards:", "Collect 18 floating golden crystals (3 per realm)."],
 		["Flow State:", "Chain jumps, pads & wall-kicks to build speed & music."],
-		["Bounce & Orbs:", "Pads & cyan Spirit-Orbs (Shift/RMB) refresh your Air-Dash."],
+		["Bounce & Orbs:", "Pads & cyan Spirit-Orbs (□ / R2 / RMB) refresh Air-Dash."],
 		["Realms & Walls:", "Ride wind columns, leap Portal Frames & wall-run bells."],
 	]
 	for item in how_data:
@@ -161,7 +179,7 @@ func _build_menu() -> void:
 
 		var hk := Label.new()
 		hk.text = item[0]
-		hk.custom_minimum_size = Vector2(96, 0)
+		hk.custom_minimum_size = Vector2(92, 0)
 		UITheme.apply_font(hk, "bold", 11, UITheme.ACCENT_AMBER)
 		hrow.add_child(hk)
 
@@ -175,24 +193,24 @@ func _build_menu() -> void:
 	vsep.modulate = Color(0.96, 0.88, 0.72, 0.25)
 	cols.add_child(vsep)
 
-	# RIGHT COLUMN: Quick Controls
+	# RIGHT COLUMN: Quick Controls (Mac + iPhone DualSense)
 	var inst_v := VBoxContainer.new()
 	inst_v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inst_v.add_theme_constant_override("separation", 4)
 	cols.add_child(inst_v)
 
 	var ctrl_title := Label.new()
-	ctrl_title.text = "Quick Controls"
+	ctrl_title.text = "Controls (Mac / iPhone Deck)"
 	UITheme.apply_font(ctrl_title, "extrabold", 12, UITheme.INK_PRIMARY)
 	inst_v.add_child(ctrl_title)
 
 	var controls_data := [
-		["Move / Camera:", "WASD + Mouse"],
-		["Jump / Wall-Kick:", "Space (run beside curved walls to auto wall-run)"],
-		["Air-Dash / Orb Zip:", "Shift (in air), Right-Click, E, or Q"],
-		["Slide / Long-Jump:", "C or Ctrl while sprinting, then Space"],
-		["Rewind to Shrine:", "R (instant respawn at last lit shrine)"],
-		["Swap / Pause:", "1 / 2 / 3 hot-swap explorer, Esc Pause Menu"],
+		["Move / Camera:", "WASD + Mouse  ·  L-Stick + R-Stick / Touchpad"],
+		["Jump / Wall-Kick:", "Space  ·  ✕ Cross or R1 Bumper"],
+		["Air-Dash / Orb:", "Shift / E / RMB  ·  □ Square or R2 Trigger"],
+		["Slide / Long-Jump:", "C / Ctrl  ·  ○ Circle or L2 Trigger"],
+		["Rewind to Shrine:", "R  ·  △ Triangle or Top Shrine Pill"],
+		["Swap / Pause:", "1-3 / Esc  ·  Explorer Chips / ≡ Menu"],
 	]
 	for item in controls_data:
 		var crow := HBoxContainer.new()
@@ -201,7 +219,7 @@ func _build_menu() -> void:
 
 		var k_lbl := Label.new()
 		k_lbl.text = item[0]
-		k_lbl.custom_minimum_size = Vector2(118, 0)
+		k_lbl.custom_minimum_size = Vector2(114, 0)
 		UITheme.apply_font(k_lbl, "bold", 11, UITheme.ACCENT_AMBER)
 		crow.add_child(k_lbl)
 
@@ -227,7 +245,7 @@ func _build_menu() -> void:
 	s_row.add_theme_constant_override("separation", 12)
 	v.add_child(s_row)
 	var sl := Label.new()
-	sl.text = "Mouse Sensitivity"
+	sl.text = "Look Sensitivity"
 	sl.custom_minimum_size = Vector2(148, 0)
 	UITheme.apply_font(sl, "semibold", 14, UITheme.INK_SECONDARY)
 	s_row.add_child(sl)
@@ -285,7 +303,7 @@ func _build_menu() -> void:
 		_mus_val_lbl.text = "%d%%" % int(round(val * 100.0))
 	)
 
-	# Footer actions ("Change Explorer", "Quit Game")
+	# Footer actions ("Restart Climb", "Change Explorer", "Quit Game")
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 10)
 	v.add_child(foot)
@@ -319,9 +337,58 @@ func _build_menu() -> void:
 	quit_b.pressed.connect(func(): get_tree().quit())
 	foot.add_child(quit_b)
 
+	# RIGHT SIDE COLUMN: Controller Mode Selector + Live Scannable QR Pairing Panel
+	var right_v := VBoxContainer.new()
+	right_v.custom_minimum_size = Vector2(285, 0)
+	right_v.add_theme_constant_override("separation", 10)
+	body_cols.add_child(right_v)
+
+	var ctrl_mode_lbl := Label.new()
+	ctrl_mode_lbl.text = "Controller Mode"
+	UITheme.apply_font(ctrl_mode_lbl, "bold", 13, UITheme.INK_SECONDARY)
+	right_v.add_child(ctrl_mode_lbl)
+
+	var ctrl_mode_row := HBoxContainer.new()
+	ctrl_mode_row.add_theme_constant_override("separation", 8)
+	right_v.add_child(ctrl_mode_row)
+
+	_kb_btn = Button.new()
+	_kb_btn.text = "Keyboard"
+	_kb_btn.custom_minimum_size = Vector2(0, 36)
+	_kb_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_kb_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.0)
+		PhoneController.set_phone_mode(false)
+	)
+	ctrl_mode_row.add_child(_kb_btn)
+
+	_phone_btn = Button.new()
+	_phone_btn.text = "iPhone Deck"
+	_phone_btn.custom_minimum_size = Vector2(0, 36)
+	_phone_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_phone_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.15)
+		PhoneController.set_phone_mode(true)
+	)
+	ctrl_mode_row.add_child(_phone_btn)
+
+	var qr_panel := PairingPanelScript.new(true)
+	qr_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_v.add_child(qr_panel)
+
+	_refresh_ctrl_mode_buttons()
+
 
 func _refresh_char_buttons() -> void:
 	for cid in _char_btns:
 		var cb: Button = _char_btns[cid]
 		var active: bool = (str(cid) == GameState.selected_character)
 		UITheme.style_secondary_pill(cb, active, 14)
+
+
+func _refresh_ctrl_mode_buttons() -> void:
+	if _kb_btn == null or _phone_btn == null:
+		return
+	var phone_on := PhoneController.use_phone_controller
+	UITheme.style_secondary_pill(_kb_btn, not phone_on, 13)
+	UITheme.style_secondary_pill(_phone_btn, phone_on, 13)

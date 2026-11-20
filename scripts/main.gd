@@ -59,6 +59,26 @@ func _ready() -> void:
 	canvas.add_child(_summit_ui)
 
 	GameState.summit_reached.connect(_on_summit_reached)
+	GameState.shard_collected.connect(func(_cur: int, _tot: int): PhoneController.send_haptic("shard"))
+	GameState.checkpoint_updated.connect(func(_id: String, _w: int, _p: Vector3): PhoneController.send_haptic("shard"))
+	GameState.character_changed.connect(func(cid: String):
+		if diorama_root.visible:
+			_on_diorama_highlight(cid)
+	)
+
+	PhoneController.remote_toggle_pause.connect(_toggle_pause)
+	PhoneController.remote_resume.connect(func():
+		if GameState.is_playing and GameState.is_paused:
+			_resume_from_pause()
+	)
+	PhoneController.remote_restart_climb.connect(func():
+		if GameState.is_playing:
+			_restart_full_climb()
+	)
+	PhoneController.remote_teleport_world.connect(func(w_idx: int):
+		if GameState.is_playing:
+			_teleport_to_world(w_idx)
+	)
 
 	# Position cleanly at World 1 Diorama
 	_enter_diorama_mode()
@@ -236,13 +256,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _gauntlet_mode or not GameState.is_playing:
 		return
 	if event.is_action_pressed("ui_cancel"):
-		if GameState.is_paused:
-			_resume_from_pause()
-		else:
-			GameState.is_paused = true
-			_hud.set_paused_hidden(true)
-			_pause_menu.open_animated()
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_toggle_pause()
+
+
+func _toggle_pause() -> void:
+	if not GameState.is_playing:
+		return
+	if GameState.is_paused:
+		_resume_from_pause()
+	else:
+		GameState.is_paused = true
+		_hud.set_paused_hidden(true)
+		_pause_menu.open_animated()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _process(delta: float) -> void:

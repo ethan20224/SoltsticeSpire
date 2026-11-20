@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Solstice Spire">
+<meta name="theme-color" content="#141115">
+<title>Solstice Spire · DualSense iPhone Controller</title>
+<style>
+  @font-face {
+    font-family: 'Nunito';
+    src: url('/Nunito.ttf') format('truetype');
+    font-weight: 400 900;
+    font-display: swap;
+  }
+
+  :root {
+    --bg-obsidian: oklch(0.14 0.014 55);
+    --bg-shell: oklch(0.18 0.018 55);
+    --bg-well: oklch(0.11 0.012 55);
+    --surface-glass: oklch(0.21 0.02 55 / 0.88);
+    --surface-raised: oklch(0.24 0.022 55);
+    --surface-active: oklch(0.30 0.03 65);
+    --ink-primary: oklch(0.97 0.015 82);
+    --ink-secondary: oklch(0.80 0.022 76);
+    --ink-muted: oklch(0.62 0.02 70);
+    --ink-dark: oklch(0.15 0.02 55);
+
+    /* Dynamic character accent (defaults to Pip Warm Amber) */
+    --accent: oklch(0.81 0.16 78);
+    --accent-glow: oklch(0.81 0.16 78 / 0.36);
+    --accent-soft: oklch(0.81 0.16 78 / 0.16);
+    --cyan-orb: oklch(0.84 0.15 210);
+    --cyan-glow: oklch(0.84 0.15 210 / 0.45);
+    --emerald-live: oklch(0.78 0.17 152);
+
+    --border-rim: oklch(0.92 0.03 80 / 0.16);
+    --border-bright: oklch(0.94 0.04 80 / 0.34);
+
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --target-size: 44px;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100dvw;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg-obsidian);
+    color: var(--ink-primary);
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', sans-serif;
+    touch-action: none;
+    overscroll-behavior: none;
+    position: fixed;
+    inset: 0;
+  }
+
+  /* Subtle machined anodized grip texture + dynamic ambient glow */
+  .controller-deck {
+    position: relative;
+    width: 100dvw;
+    height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(215px, 1.08fr) minmax(220px, 0.96fr) minmax(245px, 1.18fr);
+    gap: clamp(8px, 1.4dvw, 16px);
+    padding-top: max(10px, env(safe-area-inset-top, 10px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+    padding-left: max(16px, env(safe-area-inset-left, 16px));
+    padding-right: max(16px, env(safe-area-inset-right, 16px));
+    background:
+      radial-gradient(circle at 50% 0%, var(--accent-soft), transparent 58%),
+      radial-gradient(circle at 15% 60%, oklch(0.22 0.02 55 / 0.55), transparent 50%),
+      radial-gradient(circle at 85% 60%, oklch(0.22 0.02 55 / 0.55), transparent 50%),
+      var(--bg-obsidian);
+  }
+
+  /* ================= LEFT WING: ANALOG STICK + L1/L2 + EXPLORER D-PAD ================= */
+  .wing-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    height: 100%;
+    position: relative;
+  }
+
+  .shoulder-row {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 8px;
+    z-index: 4;
+  }
+
+  .shoulder-row.right-shoulders {
+    grid-template-columns: 0.85fr 1.15fr;
+  }
+
+  .trigger-btn {
+    min-block-size: var(--target-size);
+    height: clamp(44px, 11.5dvh, 52px);
+    border-radius: 16px 16px 10px 10px;
+    background: linear-gradient(180deg, oklch(0.26 0.024 55), oklch(0.19 0.018 55));
+    border: 1px solid var(--border-rim);
+    border-bottom: 3px solid oklch(0.10 0.01 55);
+    color: var(--ink-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-weight: 800;
+    font-size: clamp(12px, 1.55dvw, 14px);
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 12px oklch(0.06 0.01 55 / 0.45);
+    transition: transform 110ms var(--ease-out-expo), background 120ms ease, border-color 120ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .trigger-btn .tag {
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: oklch(0.13 0.014 55 / 0.75);
+    color: var(--accent);
+    border: 1px solid var(--border-rim);
+  }
+
+  .trigger-btn.pressed,
+  .trigger-btn.locked {
+    transform: scale(0.96) translateY(1px);
+    background: linear-gradient(180deg, var(--accent), oklch(0.68 0.15 70));
+    color: var(--ink-dark);
+    border-color: var(--ink-primary);
+  }
+
+  .trigger-btn.pressed .tag,
+  .trigger-btn.locked .tag {
+    background: oklch(0.14 0.02 55 / 0.88);
+    color: var(--ink-primary);
+  }
+
+  .trigger-btn.orb-hot {
+    background: linear-gradient(180deg, oklch(0.32 0.09 210), oklch(0.22 0.07 210));
+    border-color: var(--cyan-orb);
+    box-shadow: 0 0 18px var(--cyan-glow);
+  }
+
+  /* Left Analog Thumbstick Well */
+  .stick-stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin: 2px 0;
+  }
+
+  .stick-well {
+    width: clamp(134px, 37dvh, 166px);
+    height: clamp(134px, 37dvh, 166px);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 50%, oklch(0.10 0.01 55) 0%, oklch(0.15 0.016 55) 68%, oklch(0.20 0.02 55) 100%);
+    border: 2px solid var(--border-rim);
+    box-shadow:
+      inset 0 6px 18px oklch(0.05 0.01 55 / 0.85),
+      0 2px 10px oklch(0.06 0.01 55 / 0.45);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
+
+  /* Outer Auto-Sprint Rim indicator */
+  .stick-well::before {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    border: 1px dashed oklch(0.90 0.03 80 / 0.16);
+    pointer-events: none;
+  }
+
+  .stick-well.active {
+    border-color: var(--accent);
+    box-shadow:
+      inset 0 6px 18px oklch(0.05 0.01 55 / 0.85),
+      0 0 20px var(--accent-glow);
+  }
+
+  .stick-well.sprinting {
+    border-color: var(--ink-primary);
+    box-shadow:
+      inset 0 0 20px var(--accent-glow),
+      0 0 26px var(--accent-glow);
+  }
+
+  .stick-axis-cross {
+    position: absolute;
+    inset: 22px;
+    pointer-events: none;
+    opacity: 0.22;
+  }
+
+  .stick-axis-cross::before,
+  .stick-axis-cross::after {
+    content: "";
+    position: absolute;
+    background: var(--ink-secondary);
+  }
+  .stick-axis-cross::before {
+    left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-0.5px);
+  }
+  .stick-axis-cross::after {
+    top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-0.5px);
+  }
+
+  .stick-cap {
+    width: clamp(58px, 16.5dvh, 72px);
+    height: clamp(58px, 16.5dvh, 72px);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 36% 32%, oklch(0.34 0.025 55), oklch(0.21 0.018 55) 70%, oklch(0.15 0.014 55) 100%);
+    border: 2px solid var(--border-bright);
+    box-shadow:
+      0 6px 14px oklch(0.04 0.01 55 / 0.78),
+      inset 0 2px 4px oklch(0.98 0.01 80 / 0.20);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .stick-cap-inner {
+    width: 66%;
+    height: 66%;
+    border-radius: 50%;
+    border: 1.5px solid oklch(0.95 0.02 80 / 0.22);
+    background: radial-gradient(circle at 50% 50%, oklch(0.18 0.016 55), oklch(0.24 0.02 55));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 900;
+    color: var(--ink-secondary);
+    letter-spacing: 0.04em;
+  }
+
+  .stick-well.active .stick-cap {
+    border-color: var(--accent);
+  }
+
+  .stick-well.sprinting .stick-cap-inner {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .stick-badge {
+    position: absolute;
+    bottom: -5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    background: oklch(0.16 0.016 55 / 0.94);
+    border: 1px solid var(--border-rim);
+    color: var(--ink-secondary);
+    pointer-events: none;
+  }
+
+  .stick-well.sprinting .stick-badge {
+    background: var(--accent);
+    color: var(--ink-dark);
+    border-color: var(--ink-primary);
+  }
+
+  /* Explorer Quick-Swap Bar (1 Pip / 2 Koko / 3 Vesper) */
+  .explorer-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    z-index: 4;
+  }
+
+  .explorer-chip {
+    min-block-size: 38px;
+    height: clamp(38px, 10dvh, 44px);
+    border-radius: 999px;
+    background: var(--surface-glass);
+    border: 1px solid var(--border-rim);
+    color: var(--ink-secondary);
+    font-weight: 800;
+    font-size: clamp(11px, 1.4dvw, 13px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: transform 110ms var(--ease-out-expo), background 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+
+  .explorer-chip .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .explorer-chip.active {
+    background: oklch(0.96 0.02 82);
+    color: var(--ink-dark);
+    border-color: oklch(0.78 0.04 75);
+    font-weight: 900;
+    box-shadow: 0 3px 10px oklch(0.05 0.01 55 / 0.4);
+  }
+
+  .explorer-chip:active {
+    transform: scale(0.95);
+  }
+
+  /* ================= CENTER WING: DUALSENSE TOUCHPAD + LIVE TELEMETRY ================= */
+  .wing-center {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    height: 100%;
+    position: relative;
+  }
+
+  .utility-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .pill-btn {
+    min-block-size: 38px;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-rim);
+    color: var(--ink-primary);
+    font-size: 11px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: transform 110ms var(--ease-out-expo), background 120ms ease;
+  }
+
+  .pill-btn.pressed,
+  .pill-btn.active-toggle {
+    transform: scale(0.95);
+    background: var(--accent);
+    color: var(--ink-dark);
+    border-color: var(--ink-primary);
+  }
+
+  .status-capsule {
+    flex: 1;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: oklch(0.12 0.012 55 / 0.92);
+    border: 1px solid var(--border-rim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--ink-secondary);
+    white-space: nowrap;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: oklch(0.75 0.16 70);
+    box-shadow: 0 0 8px oklch(0.75 0.16 70);
+  }
+
+  .status-dot.connected {
+    background: var(--emerald-live);
+    box-shadow: 0 0 10px var(--emerald-live);
+  }
+
+  /* DualSense Central Touchpad with Glowing Character Lightbar Flanks */
+  .touchpad-shell {
+    flex: 1;
+    position: relative;
+    border-radius: 18px 18px 26px 26px;
+    background:
+      linear-gradient(180deg, oklch(0.19 0.02 55) 0%, oklch(0.14 0.015 55) 100%);
+    border: 1.5px solid var(--border-rim);
+    box-shadow:
+      inset 0 2px 8px oklch(0.96 0.02 80 / 0.08),
+      0 8px 24px oklch(0.04 0.01 55 / 0.65);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  /* Left & Right DualSense Lightbar Slits */
+  .touchpad-shell::before,
+  .touchpad-shell::after {
+    content: "";
+    position: absolute;
+    top: 12%;
+    bottom: 16%;
+    width: 3.5px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 14px var(--accent), 0 0 24px var(--accent-glow);
+    transition: background 240ms ease, box-shadow 240ms ease;
+  }
+  .touchpad-shell::before { left: 0; }
+  .touchpad-shell::after { right: 0; }
+
+  .tp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    pointer-events: none;
+  }
+
+  .realm-badge {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--ink-dark);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+  }
+
+  .realm-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tp-altitude-block {
+    text-align: center;
+    pointer-events: none;
+    margin: 2px 0;
+  }
+
+  .tp-alt-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tp-alt-val {
+    font-size: clamp(26px, 7.2dvh, 34px);
+    font-weight: 900;
+    color: var(--ink-primary);
+    line-height: 1;
+  }
+
+  .tp-alt-goal {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-muted);
+  }
+
+  .tp-progress-track {
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: oklch(0.10 0.01 55 / 0.8);
+    margin-top: 6px;
+    overflow: hidden;
+  }
+
+  .tp-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width 150ms linear;
+  }
+
+  .tp-metrics {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--ink-secondary);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .tp-metrics .shard-count {
+    color: var(--accent);
+  }
+
+  .tp-hint {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink-muted);
+    pointer-events: none;
+  }
+
+  /* Context Overlay inside Touchpad for Title Screen / Pause Menu / Victory */
+  .tp-context-drawer {
+    position: absolute;
+    inset: 0;
+    background: oklch(0.14 0.016 55 / 0.96);
+    padding: 10px 12px;
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 6px;
+    z-index: 6;
+  }
+
+  .tp-context-drawer.visible {
+    display: flex;
+  }
+
+  .cta-primary {
+    width: 100%;
+    min-block-size: 44px;
+    flex: 1;
+    max-height: 54px;
+    border-radius: 999px;
+    background: var(--accent);
+    border: 1px solid oklch(0.96 0.04 85);
+    border-bottom: 3px solid oklch(0.58 0.14 68);
+    color: var(--ink-dark);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px var(--accent-glow);
+  }
+
+  .cta-primary:active {
+    transform: scale(0.96);
+  }
+
+  .realm-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+  }
+
+  .realm-mini-btn {
+    min-block-size: 32px;
+    padding: 4px 2px;
+    border-radius: 10px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-rim);
+    color: var(--ink-primary);
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .realm-mini-btn:active {
+    transform: scale(0.94);
+    background: var(--accent);
+    color: var(--ink-dark);
+  }
+
+  /* Bottom Speaker Grille + Mic Mute Accent */
+  .dualsense-grille {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .grille-dots {
+    display: flex;
+    gap: 4px;
+  }
+
+  .grille-dots span {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: oklch(0.45 0.02 65 / 0.5);
+  }
+
+  .haptic-led {
+    width: 16px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* ================= RIGHT WING: DIAMOND ACTION CLUSTER + RIGHT CAMERA STICK ================= */
+  .wing-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    position: relative;
+  }
+
+  .right-deck-body {
+    flex: 1;
+    position: relative;
+    display: grid;
+    grid-template-columns: 0.92fr 1.18fr;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Right Camera Analog Thumbstick (bottom-inner right, true DualSense position) */
+  .cam-stick-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    height: 100%;
+    padding-bottom: 4px;
+  }
+
+  .cam-stick-well {
+    width: clamp(104px, 29dvh, 126px);
+    height: clamp(104px, 29dvh, 126px);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 50%, oklch(0.10 0.01 55) 0%, oklch(0.15 0.016 55) 70%, oklch(0.20 0.02 55) 100%);
+    border: 2px solid var(--border-rim);
+    box-shadow: inset 0 5px 14px oklch(0.05 0.01 55 / 0.85);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cam-stick-well.active {
+    border-color: var(--accent);
+    box-shadow:
+      inset 0 5px 14px oklch(0.05 0.01 55 / 0.85),
+      0 0 18px var(--accent-glow);
+  }
+
+  .cam-stick-cap {
+    width: clamp(46px, 13.5dvh, 56px);
+    height: clamp(46px, 13.5dvh, 56px);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 36% 32%, oklch(0.34 0.025 55), oklch(0.20 0.018 55) 72%, oklch(0.15 0.014 55) 100%);
+    border: 2px solid var(--border-bright);
+    box-shadow: 0 5px 12px oklch(0.04 0.01 55 / 0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 900;
+    color: var(--ink-secondary);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  /* DualSense Action Diamond (Triangle, Square, Circle, Cross) */
+  .action-diamond {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 170px;
+  }
+
+  .face-btn {
+    position: absolute;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 35% 28%, oklch(0.28 0.025 55), oklch(0.18 0.018 55) 75%);
+    border: 2px solid var(--border-bright);
+    box-shadow:
+      0 6px 16px oklch(0.04 0.01 55 / 0.7),
+      inset 0 1.5px 3px oklch(0.98 0.01 80 / 0.22);
+    color: var(--ink-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.05;
+    transition: transform 90ms var(--ease-out-expo), background 110ms ease, border-color 110ms ease, box-shadow 110ms ease;
+  }
+
+  .face-btn .glyph {
+    font-size: clamp(16px, 4.6dvh, 21px);
+    font-weight: 900;
+  }
+
+  .face-btn .lbl {
+    font-size: clamp(8.5px, 2.2dvh, 10px);
+    font-weight: 800;
+    color: var(--ink-secondary);
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+  }
+
+  /* Cross (Bottom - Primary Largest Jump / Wall-Kick Button) */
+  .face-btn.btn-cross {
+    width: clamp(64px, 18.5dvh, 76px);
+    height: clamp(64px, 18.5dvh, 76px);
+    left: 50%;
+    bottom: 2%;
+    transform: translateX(-50%);
+    background:
+      radial-gradient(circle at 35% 28%, oklch(0.34 0.05 75), oklch(0.21 0.03 65) 78%);
+    border-color: var(--accent);
+    box-shadow:
+      0 6px 18px oklch(0.04 0.01 55 / 0.75),
+      0 0 14px var(--accent-soft);
+  }
+  .face-btn.btn-cross .glyph {
+    color: var(--accent);
+    font-size: clamp(19px, 5.2dvh, 24px);
+  }
+
+  /* Square (Left - Air-Dash / Orb Snap) */
+  .face-btn.btn-square {
+    width: clamp(56px, 16dvh, 66px);
+    height: clamp(56px, 16dvh, 66px);
+    left: 2%;
+    top: 48%;
+    transform: translateY(-50%);
+  }
+  .face-btn.btn-square .glyph {
+    color: var(--cyan-orb);
+  }
+
+  /* Circle (Right - Slide / Long-Jump) */
+  .face-btn.btn-circle {
+    width: clamp(56px, 16dvh, 66px);
+    height: clamp(56px, 16dvh, 66px);
+    right: 2%;
+    top: 48%;
+    transform: translateY(-50%);
+  }
+  .face-btn.btn-circle .glyph {
+    color: oklch(0.80 0.15 45);
+  }
+
+  /* Triangle (Top - Rewind to Shrine) */
+  .face-btn.btn-triangle {
+    width: clamp(50px, 14.5dvh, 58px);
+    height: clamp(50px, 14.5dvh, 58px);
+    left: 50%;
+    top: 2%;
+    transform: translateX(-50%);
+  }
+  .face-btn.btn-triangle .glyph {
+    color: oklch(0.85 0.14 145);
+  }
+
+  /* Active Pressed States for Diamond Buttons */
+  .face-btn.btn-cross.pressed {
+    transform: translateX(-50%) scale(0.92);
+    background: var(--accent);
+    color: var(--ink-dark);
+    box-shadow: 0 0 24px var(--accent);
+  }
+  .face-btn.btn-cross.pressed .glyph,
+  .face-btn.btn-cross.pressed .lbl {
+    color: var(--ink-dark);
+  }
+
+  .face-btn.btn-square.pressed {
+    transform: translateY(-50%) scale(0.92);
+    background: var(--cyan-orb);
+    border-color: var(--ink-primary);
+    box-shadow: 0 0 24px var(--cyan-orb);
+  }
+  .face-btn.btn-square.pressed .glyph,
+  .face-btn.btn-square.pressed .lbl {
+    color: var(--ink-dark);
+  }
+
+  .face-btn.btn-square.orb-hot {
+    border-color: var(--cyan-orb);
+    background: radial-gradient(circle at 50% 50%, oklch(0.36 0.11 210), oklch(0.22 0.08 210));
+    box-shadow: 0 0 22px var(--cyan-glow);
+  }
+
+  .face-btn.btn-circle.pressed {
+    transform: translateY(-50%) scale(0.92);
+    background: oklch(0.80 0.15 45);
+    border-color: var(--ink-primary);
+  }
+  .face-btn.btn-circle.pressed .glyph,
+  .face-btn.btn-circle.pressed .lbl {
+    color: var(--ink-dark);
+  }
+
+  .face-btn.btn-triangle.pressed {
+    transform: translateX(-50%) scale(0.92);
+    background: oklch(0.85 0.14 145);
+    border-color: var(--ink-primary);
+  }
+  .face-btn.btn-triangle.pressed .glyph,
+  .face-btn.btn-triangle.pressed .lbl {
+    color: var(--ink-dark);
+  }
+
+  /* Portrait Rotate Prompt Overlay */
+  .rotate-overlay {
+    position: fixed;
+    inset: 0;
+    background: oklch(0.11 0.014 55 / 0.97);
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    text-align: center;
+    gap: 14px;
+  }
+
+  @media (orientation: portrait) {
+    .rotate-overlay:not(.dismissed) {
+      display: flex;
+    }
+  }
+
+  .rotate-icon {
+    width: 72px;
+    height: 44px;
+    border-radius: 12px;
+    border: 2.5px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--accent);
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+
+  .rotate-overlay h2 {
+    font-size: 22px;
+    font-weight: 900;
+    text-wrap: balance;
+  }
+
+  .rotate-overlay p {
+    font-size: 14px;
+    color: var(--ink-secondary);
+    max-width: 32ch;
+    text-wrap: pretty;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hidden iOS 17.4 / 18+ Native Taptic Engine Switch Trigger -->
+<div aria-hidden="true" style="position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;">
+  <input type="checkbox" id="ios-haptic-switch" switch />
+  <label for="ios-haptic-switch" id="ios-haptic-label"></label>
+</div>
+
+<!-- Portrait Orientation Notice (auto-hides when iPhone is rotated horizontally) -->
+<div class="rotate-overlay" id="rotate-overlay">
+  <div class="rotate-icon">⟳</div>
+  <h2>Rotate iPhone Horizontally</h2>
+  <p>Solstice Spire's DualSense deck is tailored for landscape grip on iPhone 15.</p>
+  <button type="button" class="pill-btn" id="dismiss-rotate-btn" style="margin-top:8px;padding:0 20px;height:44px;">
+    Use Current Orientation
+  </button>
+</div>
+
+<main class="controller-deck" id="controller-deck">
+  <!-- ================= LEFT WING ================= -->
+  <section class="wing-left" aria-label="Movement Controls">
+    <div class="shoulder-row">
+      <div class="trigger-btn" id="btn-l2" role="button" aria-label="L2 Slide Dive">
+        <span class="tag">L2</span>
+        <span>SLIDE</span>
+      </div>
+      <div class="trigger-btn" id="btn-l1" role="button" aria-label="L1 Sprint Lock">
+        <span class="tag">L1</span>
+        <span id="l1-label">SPRINT</span>
+      </div>
+    </div>
+
+    <div class="stick-stage" id="left-stick-zone">
+      <div class="stick-well" id="left-stick-well">
+        <div class="stick-axis-cross"></div>
+        <div class="stick-cap" id="left-stick-cap">
+          <div class="stick-cap-inner" id="left-stick-readout">L3</div>
+        </div>
+        <div class="stick-badge" id="left-stick-badge">MOVE · OUTER SPRINT</div>
+      </div>
+    </div>
+
+    <div class="explorer-bar" role="group" aria-label="Switch Explorer">
+      <div class="explorer-chip active" data-char="pip" id="char-pip" role="button">
+        <span class="dot" style="background:#f9bd3d;"></span>
+        <span>Pip</span>
+      </div>
+      <div class="explorer-chip" data-char="koko" id="char-koko" role="button">
+        <span class="dot" style="background:#47e8ff;"></span>
+        <span>Koko</span>
+      </div>
+      <div class="explorer-chip" data-char="vesper" id="char-vesper" role="button">
+        <span class="dot" style="background:#d68aff;"></span>
+        <span>Vesper</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CENTER WING ================= -->
+  <section class="wing-center" aria-label="Telemetry Touchpad and System Controls">
+    <div class="utility-row">
+      <div class="pill-btn" id="btn-rewind-top" role="button" aria-label="Rewind to Shrine">
+        <span>⟲</span>
+        <span>Shrine</span>
+      </div>
+      <div class="status-capsule" id="status-capsule">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+      <div class="pill-btn" id="btn-gyro" role="button" aria-label="Toggle Gyro Aim">
+        <span>◎</span>
+        <span id="gyro-text">Gyro</span>
+      </div>
+      <div class="pill-btn" id="btn-pause" role="button" aria-label="Pause Menu">
+        <span>≡</span>
+        <span>Menu</span>
+      </div>
+    </div>
+
+    <!-- DualSense Center Touchpad (Swipe to Look + Live Telemetry + Context Menu) -->
+    <div class="touchpad-shell" id="touchpad-zone">
+      <div class="tp-header">
+        <span class="realm-badge" id="tp-realm-badge">REALM I</span>
+        <span class="realm-title" id="tp-realm-name">The Sunken Conservatory</span>
+      </div>
+
+      <div class="tp-altitude-block">
+        <div class="tp-alt-row">
+          <span class="tp-alt-val" id="tp-alt-val">0m</span>
+          <span class="tp-alt-goal">/ 1,085m</span>
+        </div>
+        <div class="tp-progress-track">
+          <div class="tp-progress-fill" id="tp-progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="tp-metrics">
+        <span id="tp-timer">00:00.00</span>
+        <span class="shard-count" id="tp-shards">✦ 0/18</span>
+        <span id="tp-flow">FLOW x0</span>
+      </div>
+
+      <div class="tp-hint" id="tp-hint">SWIPE TOUCHPAD OR RIGHT STICK TO ORBIT CAMERA</div>
+
+      <!-- Context Drawer: Title Screen Mode -->
+      <div class="tp-context-drawer visible" id="drawer-title">
+        <div style="text-align:center;">
+          <div style="font-size:10px;font-weight:800;color:var(--ink-secondary);">TITLE DIORAMA READY</div>
+          <div style="font-size:13px;font-weight:900;color:var(--ink-primary);">Pick Explorer &amp; Launch</div>
+        </div>
+        <button type="button" class="cta-primary" id="btn-begin-ascent">
+          <span>BEGIN ASCENT</span>
+          <span>✕</span>
+        </button>
+      </div>
+
+      <!-- Context Drawer: Pause Menu Mode -->
+      <div class="tp-context-drawer" id="drawer-pause">
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="cta-primary" id="btn-resume-ascent" style="max-height:38px;min-block-size:38px;font-size:12px;">
+            <span>RESUME ASCENT</span>
+          </button>
+          <button type="button" class="pill-btn" id="btn-restart-climb" style="height:38px;min-block-size:38px;">
+            <span>Restart</span>
+          </button>
+        </div>
+        <div class="realm-mini-grid" id="realm-mini-grid">
+          <button type="button" class="realm-mini-btn" data-world="0">I · Garden</button>
+          <button type="button" class="realm-mini-btn" data-world="1">II · Foundry</button>
+          <button type="button" class="realm-mini-btn" data-world="2">III · Monsoon</button>
+          <button type="button" class="realm-mini-btn" data-world="3">IV · Mirrors</button>
+          <button type="button" class="realm-mini-btn" data-world="4">V · Library</button>
+          <button type="button" class="realm-mini-btn" data-world="5">VI · Crown</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dualsense-grille">
+      <div class="grille-dots"><span></span><span></span><span></span><span></span></div>
+      <div class="haptic-led" id="haptic-led"></div>
+      <div class="grille-dots"><span></span><span></span><span></span><span></span></div>
+    </div>
+  </section>
+
+  <!-- ================= RIGHT WING ================= -->
+  <section class="wing-right" aria-label="Camera and Parkour Actions">
+    <div class="shoulder-row right-shoulders">
+      <div class="trigger-btn" id="btn-r1" role="button" aria-label="R1 Jump and Wall Kick">
+        <span class="tag">R1</span>
+        <span>JUMP</span>
+      </div>
+      <div class="trigger-btn" id="btn-r2" role="button" aria-label="R2 Air Dash and Orb Snap">
+        <span class="tag">R2</span>
+        <span id="r2-label">AIR-DASH</span>
+      </div>
+    </div>
+
+    <div class="right-deck-body" id="right-look-zone">
+      <!-- Right Analog Camera Stick -->
+      <div class="cam-stick-wrap" id="right-stick-zone">
+        <div class="cam-stick-well" id="right-stick-well">
+          <div class="stick-axis-cross"></div>
+          <div class="cam-stick-cap" id="right-stick-cap">CAM</div>
+        </div>
+      </div>
+
+      <!-- DualSense Parkour Action Diamond -->
+      <div class="action-diamond">
+        <div class="face-btn btn-triangle" id="btn-triangle" role="button" aria-label="Triangle Rewind to Shrine">
+          <span class="glyph">△</span>
+          <span class="lbl">SHRINE</span>
+        </div>
+        <div class="face-btn btn-square" id="btn-square" role="button" aria-label="Square Air Dash or Orb Snap">
+          <span class="glyph">□</span>
+          <span class="lbl" id="square-lbl">DASH</span>
+        </div>
+        <div class="face-btn btn-circle" id="btn-circle" role="button" aria-label="Circle Slide Dive">
+          <span class="glyph">○</span>
+          <span class="lbl">SLIDE</span>
+        </div>
+        <div class="face-btn btn-cross" id="btn-cross" role="button" aria-label="Cross Jump and Wall Kick">
+          <span class="glyph">✕</span>
+          <span class="lbl">JUMP</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  // --- Character Themes (OKLCH) ---
+  const CHAR_THEMES = {
+    pip: {
+      accent: 'oklch(0.81 0.16 78)',
+      glow: 'oklch(0.81 0.16 78 / 0.38)',
+      soft: 'oklch(0.81 0.16 78 / 0.16)'
+    },
+    koko: {
+      accent: 'oklch(0.85 0.15 210)',
+      glow: 'oklch(0.85 0.15 210 / 0.38)',
+      soft: 'oklch(0.85 0.15 210 / 0.16)'
+    },
+    vesper: {
+      accent: 'oklch(0.78 0.17 312)',
+      glow: 'oklch(0.78 0.17 312 / 0.38)',
+      soft: 'oklch(0.78 0.17 312 / 0.16)'
+    }
+  };
+
+  // --- Triple-Layer Haptic & Tactile Acoustic Synthesizer ---
+  const hapticLabel = document.getElementById('ios-haptic-label');
+  const hapticLed = document.getElementById('haptic-led');
+  let audioCtx = null;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  }
+
+  function triggerHaptic(kind = 'tap') {
+    // 1. iOS 17.4 / 18+ Native Taptic Engine Switch click
+    try {
+      if (hapticLabel) hapticLabel.click();
+    } catch (_) {}
+
+    // 2. Standard Vibration API fallback
+    if (navigator.vibrate) {
+      const patterns = {
+        tap: [10],
+        jump: [14],
+        double_jump: [12, 24, 18],
+        dash: [22],
+        tether: [15, 20, 28],
+        slide: [16],
+        wall_kick: [20],
+        land: [18],
+        shard: [12, 30, 20],
+        rewind: [25, 30, 15]
+      };
+      try { navigator.vibrate(patterns[kind] || [10]); } catch (_) {}
+    }
+
+    // 3. Sub-Bass Chassis Resonance + Micro-Switch Transient (Web Audio API)
+    try {
+      ensureAudio();
+      if (audioCtx && audioCtx.state === 'running') {
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (kind === 'dash' || kind === 'tether' || kind === 'wall_kick') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(115, now);
+          osc.frequency.exponentialRampToValueAtTime(48, now + 0.045);
+          gain.gain.setValueAtTime(0.24, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.048);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (kind === 'shard' || kind === 'double_jump') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.055);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+          osc.start(now);
+          osc.stop(now + 0.062);
+        } else {
+          // Physical 64Hz DualSense thump
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(78, now);
+          osc.frequency.exponentialRampToValueAtTime(44, now + 0.026);
+          gain.gain.setValueAtTime(0.20, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.028);
+          osc.start(now);
+          osc.stop(now + 0.03);
+        }
+      }
+    } catch (_) {}
+
+    // Visual LED pulse
+    if (hapticLed) {
+      hapticLed.style.transform = 'scaleX(1.45)';
+      setTimeout(() => { hapticLed.style.transform = 'scaleX(1)'; }, 90);
+    }
+  }
+
+  // --- Controller State ---
+  const state = {
+    mx: 0,
+    my: 0,
+    cx: 0,
+    cy: 0,
+    ldx: 0,
+    ldy: 0,
+    sprint_lock: false,
+    auto_sprint: false,
+    jump: false,
+    dash: false,
+    slide: false,
+    rewind: false,
+    game_mode: 'title', // 'title' | 'playing' | 'paused' | 'victory'
+    selected_char: 'pip',
+    orb_locked: false,
+    gyro_enabled: false
+  };
+
+  // --- WebSocket + HTTP Fallback Transport ---
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  let ws = null;
+  let wsConnected = false;
+  let lastPingTime = 0;
+  let rttMs = 2;
+
+  function connectWebSocket() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${proto}//${location.host}/ws`;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = () => {
+      wsConnected = true;
+      statusDot.classList.add('connected');
+      statusText.textContent = `LIVE · ${rttMs}ms`;
+      triggerHaptic('shard');
+      sendPacket({ t: 'hello', ua: navigator.userAgent });
+    };
+
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        handleServerMessage(msg);
+      } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      wsConnected = false;
+      statusDot.classList.remove('connected');
+      statusText.textContent = 'Reconnecting…';
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+      wsConnected = false;
+    };
+  }
+
+  let reconnectTimer = null;
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectWebSocket();
+    }, 900);
+  }
+
+  function sendPacket(payload) {
+    const json = JSON.stringify(payload);
+    if (ws && wsConnected && ws.readyState === WebSocket.OPEN) {
+      ws.send(json);
+    } else {
+      // Resilient HTTP fallback if WebSocket is still handshaking
+      fetch('/input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: json,
+        keepalive: true
+      }).catch(() => {});
+    }
+  }
+
+  // Send continuous 60Hz state stream + immediate edge triggers
+  function transmitState(extraEvent = null) {
+    const payload = {
+      t: 'state',
+      mx: Number(state.mx.toFixed(3)),
+      my: Number(state.my.toFixed(3)),
+      cx: Number(state.cx.toFixed(3)),
+      cy: Number(state.cy.toFixed(3)),
+      ldx: Number(state.ldx.toFixed(2)),
+      ldy: Number(state.ldy.toFixed(2)),
+      sp: (state.sprint_lock || state.auto_sprint) ? 1 : 0,
+      jp: state.jump ? 1 : 0,
+      da: state.dash ? 1 : 0,
+      sl: state.slide ? 1 : 0,
+      rw: state.rewind ? 1 : 0
+    };
+    if (extraEvent) {
+      payload.ev = extraEvent;
+    }
+    state.ldx = 0;
+    state.ldy = 0;
+    sendPacket(payload);
+  }
+
+  function sendCommand(cmd, arg = null) {
+    sendPacket({ t: 'cmd', cmd, arg });
+  }
+
+  // --- Receive Telemetry & Haptic Events from Godot ---
+  const tpRealmBadge = document.getElementById('tp-realm-badge');
+  const tpRealmName = document.getElementById('tp-realm-name');
+  const tpAltVal = document.getElementById('tp-alt-val');
+  const tpProgressFill = document.getElementById('tp-progress-fill');
+  const tpTimer = document.getElementById('tp-timer');
+  const tpShards = document.getElementById('tp-shards');
+  const tpFlow = document.getElementById('tp-flow');
+  const drawerTitle = document.getElementById('drawer-title');
+  const drawerPause = document.getElementById('drawer-pause');
+  const btnSquare = document.getElementById('btn-square');
+  const squareLbl = document.getElementById('square-lbl');
+  const btnR2 = document.getElementById('btn-r2');
+  const r2Label = document.getElementById('r2-label');
+
+  const NUMERALS = ['REALM I', 'REALM II', 'REALM III', 'REALM IV', 'REALM V', 'REALM VI'];
+
+  function applyCharacterTheme(charId) {
+    if (!CHAR_THEMES[charId]) return;
+    state.selected_char = charId;
+    const th = CHAR_THEMES[charId];
+    document.documentElement.style.setProperty('--accent', th.accent);
+    document.documentElement.style.setProperty('--accent-glow', th.glow);
+    document.documentElement.style.setProperty('--accent-soft', th.soft);
+    document.querySelectorAll('.explorer-chip').forEach(el => {
+      el.classList.toggle('active', el.dataset.char === charId);
+    });
+  }
+
+  function handleServerMessage(msg) {
+    if (msg.t === 'pong') {
+      rttMs = Math.max(1, Math.min(99, Date.now() - lastPingTime));
+      if (wsConnected) statusText.textContent = `LIVE · ${rttMs}ms`;
+      return;
+    }
+    if (msg.t === 'haptic') {
+      triggerHaptic(msg.kind || 'tap');
+      return;
+    }
+    if (msg.t === 'telemetry') {
+      if (msg.char && msg.char !== state.selected_char) {
+        applyCharacterTheme(msg.char);
+      }
+      if (typeof msg.alt === 'number') {
+        const altInt = Math.round(msg.alt);
+        tpAltVal.textContent = `${altInt}m`;
+        const pct = Math.max(0, Math.min(100, (msg.alt / 1085) * 100));
+        tpProgressFill.style.width = `${pct.toFixed(1)}%`;
+      }
+      if (typeof msg.world === 'number') {
+        tpRealmBadge.textContent = NUMERALS[Math.max(0, Math.min(5, msg.world))];
+      }
+      if (msg.wname) tpRealmName.textContent = msg.wname;
+      if (msg.time) tpTimer.textContent = msg.time;
+      if (typeof msg.shards === 'number') tpShards.textContent = `✦ ${msg.shards}/18`;
+      if (typeof msg.streak === 'number') tpFlow.textContent = `FLOW x${msg.streak}`;
+
+      // Orb Lock-on Illumination
+      const orbHot = Boolean(msg.orb);
+      if (orbHot !== state.orb_locked) {
+        state.orb_locked = orbHot;
+        btnSquare.classList.toggle('orb-hot', orbHot);
+        btnR2.classList.toggle('orb-hot', orbHot);
+        squareLbl.textContent = orbHot ? 'SNAP!' : 'DASH';
+        r2Label.textContent = orbHot ? 'SNAP ORB!' : 'AIR-DASH';
+        if (orbHot) triggerHaptic('tap');
+      }
+
+      // Context Mode (title / playing / paused)
+      if (msg.mode && msg.mode !== state.game_mode) {
+        state.game_mode = msg.mode;
+        drawerTitle.classList.toggle('visible', msg.mode === 'title');
+        drawerPause.classList.toggle('visible', msg.mode === 'paused');
+      }
+    }
+  }
+
+  // --- Multi-Touch Left Analog Thumbstick ---
+  const leftZone = document.getElementById('left-stick-zone');
+  const leftWell = document.getElementById('left-stick-well');
+  const leftCap = document.getElementById('left-stick-cap');
+  const leftReadout = document.getElementById('left-stick-readout');
+  const leftBadge = document.getElementById('left-stick-badge');
+  let leftTouchId = null;
+  let leftCenter = { x: 0, y: 0, maxR: 48 };
+
+  function updateLeftStick(clientX, clientY) {
+    const dx = clientX - leftCenter.x;
+    const dy = clientY - leftCenter.y;
+    const dist = Math.hypot(dx, dy);
+    const maxR = leftCenter.maxR;
+    const clampedDist = Math.min(dist, maxR);
+    const angle = Math.atan2(dy, dx);
+    const px = Math.cos(angle) * clampedDist;
+    const py = Math.sin(angle) * clampedDist;
+
+    leftCap.style.transform = `translate3d(${px.toFixed(1)}px, ${py.toFixed(1)}px, 0)`;
+
+    const norm = clampedDist / maxR;
+    if (norm < 0.10) {
+      state.mx = 0;
+      state.my = 0;
+    } else {
+      const rescaled = (norm - 0.10) / 0.90;
+      state.mx = Math.cos(angle) * rescaled;
+      state.my = Math.sin(angle) * rescaled;
+    }
+
+    const wasSprinting = state.auto_sprint;
+    state.auto_sprint = norm > 0.76;
+    if (state.auto_sprint && !wasSprinting) {
+      triggerHaptic('tap');
+    }
+    leftWell.classList.toggle('sprinting', state.auto_sprint || state.sprint_lock);
+    leftReadout.textContent = (state.auto_sprint || state.sprint_lock) ? 'RUN' : 'L3';
+    leftBadge.textContent = (state.auto_sprint || state.sprint_lock) ? 'SPRINT ENGAGED' : 'MOVE · OUTER SPRINT';
+  }
+
+  function resetLeftStick() {
+    leftTouchId = null;
+    state.mx = 0;
+    state.my = 0;
+    state.auto_sprint = false;
+    leftCap.style.transform = 'translate3d(0px, 0px, 0)';
+    leftWell.classList.remove('active');
+    leftWell.classList.toggle('sprinting', state.sprint_lock);
+    leftReadout.textContent = state.sprint_lock ? 'RUN' : 'L3';
+    leftBadge.textContent = state.sprint_lock ? 'SPRINT LOCKED' : 'MOVE · OUTER SPRINT';
+    transmitState();
+  }
+
+  leftZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (leftTouchId !== null) return;
+    const t = e.changedTouches[0];
+    leftTouchId = t.identifier;
+    const rect = leftWell.getBoundingClientRect();
+    leftCenter = {
+      x: rect.left + rect.width * 0.5,
+      y: rect.top + rect.height * 0.5,
+      maxR: rect.width * 0.34
+    };
+    leftWell.classList.add('active');
+    triggerHaptic('tap');
+    updateLeftStick(t.clientX, t.clientY);
+    transmitState();
+  }, { passive: false });
+
+  leftZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === leftTouchId) {
+        updateLeftStick(t.clientX, t.clientY);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  leftZone.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === leftTouchId) {
+        resetLeftStick();
+        break;
+      }
+    }
+  });
+  leftZone.addEventListener('touchcancel', resetLeftStick);
+
+  // --- Multi-Touch Right Analog Camera Stick ---
+  const rightZone = document.getElementById('right-stick-zone');
+  const rightWell = document.getElementById('right-stick-well');
+  const rightCap = document.getElementById('right-stick-cap');
+  let rightTouchId = null;
+  let rightCenter = { x: 0, y: 0, maxR: 38 };
+  let rightPrev = { x: 0, y: 0 };
+
+  function updateRightStick(clientX, clientY) {
+    const dx = clientX - rightCenter.x;
+    const dy = clientY - rightCenter.y;
+    const dist = Math.hypot(dx, dy);
+    const maxR = rightCenter.maxR;
+    const clampedDist = Math.min(dist, maxR);
+    const angle = Math.atan2(dy, dx);
+    const px = Math.cos(angle) * clampedDist;
+    const py = Math.sin(angle) * clampedDist;
+
+    rightCap.style.transform = `translate3d(${px.toFixed(1)}px, ${py.toFixed(1)}px, 0)`;
+
+    const norm = clampedDist / maxR;
+    if (norm < 0.10) {
+      state.cx = 0;
+      state.cy = 0;
+    } else {
+      const rescaled = (norm - 0.10) / 0.90;
+      state.cx = Math.cos(angle) * rescaled;
+      state.cy = Math.sin(angle) * rescaled;
+    }
+
+    // Also add responsive micro-trackpad delta on initial movement
+    state.ldx += (clientX - rightPrev.x) * 0.45;
+    state.ldy += (clientY - rightPrev.y) * 0.45;
+    rightPrev = { x: clientX, y: clientY };
+  }
+
+  function resetRightStick() {
+    rightTouchId = null;
+    state.cx = 0;
+    state.cy = 0;
+    rightCap.style.transform = 'translate3d(0px, 0px, 0)';
+    rightWell.classList.remove('active');
+    transmitState();
+  }
+
+  rightZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (rightTouchId !== null) return;
+    const t = e.changedTouches[0];
+    rightTouchId = t.identifier;
+    const rect = rightWell.getBoundingClientRect();
+    rightCenter = {
+      x: rect.left + rect.width * 0.5,
+      y: rect.top + rect.height * 0.5,
+      maxR: rect.width * 0.34
+    };
+    rightPrev = { x: t.clientX, y: t.clientY };
+    rightWell.classList.add('active');
+    triggerHaptic('tap');
+    updateRightStick(t.clientX, t.clientY);
+  }, { passive: false });
+
+  rightZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === rightTouchId) {
+        updateRightStick(t.clientX, t.clientY);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  rightZone.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === rightTouchId) {
+        resetRightStick();
+        break;
+      }
+    }
+  });
+  rightZone.addEventListener('touchcancel', resetRightStick);
+
+  // --- Touchpad & Action-Button Look-While-Pressing Trackpad ---
+  const touchpadZone = document.getElementById('touchpad-zone');
+  const activeLookTouches = new Map();
+
+  function attachLookTrackpad(element, sensitivity = 1.35) {
+    element.addEventListener('touchstart', (e) => {
+      if (e.target.closest('button')) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        activeLookTouches.set(t.identifier, { x: t.clientX, y: t.clientY, sens: sensitivity });
+      }
+    }, { passive: true });
+
+    element.addEventListener('touchmove', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        const prev = activeLookTouches.get(t.identifier);
+        if (prev) {
+          state.ldx += (t.clientX - prev.x) * prev.sens;
+          state.ldy += (t.clientY - prev.y) * prev.sens;
+          prev.x = t.clientX;
+          prev.y = t.clientY;
+        }
+      }
+    }, { passive: true });
+
+    const endTrack = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        activeLookTouches.delete(e.changedTouches[i].identifier);
+      }
+    };
+    element.addEventListener('touchend', endTrack, { passive: true });
+    element.addEventListener('touchcancel', endTrack, { passive: true });
+  }
+
+  attachLookTrackpad(touchpadZone, 1.55);
+  attachLookTrackpad(document.getElementById('right-look-zone'), 1.25);
+
+  // --- Action Buttons with Look-While-Holding & Instant Edge Latching ---
+  function bindHoldButton(el, stateKey, eventName, hapticKind) {
+    let activeTouch = null;
+    let prevPos = null;
+
+    const onDown = (e) => {
+      e.preventDefault();
+      if (activeTouch !== null) return;
+      const t = e.changedTouches ? e.changedTouches[0] : e;
+      activeTouch = t.identifier ?? 'mouse';
+      prevPos = { x: t.clientX, y: t.clientY };
+      state[stateKey] = true;
+      el.classList.add('pressed');
+      triggerHaptic(hapticKind);
+      transmitState(eventName);
+    };
+
+    const onMove = (e) => {
+      if (activeTouch === null || !e.changedTouches) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === activeTouch && prevPos) {
+          // Allow thumb-drag camera orbit while holding Jump/Dash/Slide!
+          state.ldx += (t.clientX - prevPos.x) * 1.15;
+          state.ldy += (t.clientY - prevPos.y) * 1.15;
+          prevPos = { x: t.clientX, y: t.clientY };
+        }
+      }
+    };
+
+    const onUp = (e) => {
+      if (activeTouch === null) return;
+      if (e.changedTouches) {
+        let matched = false;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouch) matched = true;
+        }
+        if (!matched) return;
+      }
+      activeTouch = null;
+      prevPos = null;
+      state[stateKey] = false;
+      el.classList.remove('pressed');
+      transmitState();
+    };
+
+    el.addEventListener('touchstart', onDown, { passive: false });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onUp);
+    el.addEventListener('touchcancel', onUp);
+    el.addEventListener('mousedown', onDown);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // Cross (✕) & R1 -> Jump / Wall-Kick
+  bindHoldButton(document.getElementById('btn-cross'), 'jump', 'jump_down', 'jump');
+  bindHoldButton(document.getElementById('btn-r1'), 'jump', 'jump_down', 'jump');
+
+  // Square (□) & R2 -> Air-Dash / Spirit-Orb Snap
+  bindHoldButton(document.getElementById('btn-square'), 'dash', 'dash_down', 'dash');
+  bindHoldButton(document.getElementById('btn-r2'), 'dash', 'dash_down', 'dash');
+
+  // Circle (○) & L2 -> Slide-Dive / Long-Jump
+  bindHoldButton(document.getElementById('btn-circle'), 'slide', 'slide_down', 'slide');
+  bindHoldButton(document.getElementById('btn-l2'), 'slide', 'slide_down', 'slide');
+
+  // Triangle (△) & Top Shrine button -> Rewind to Last Shrine
+  bindHoldButton(document.getElementById('btn-triangle'), 'rewind', 'rewind_down', 'rewind');
+  bindHoldButton(document.getElementById('btn-rewind-top'), 'rewind', 'rewind_down', 'rewind');
+
+  // L1 Sprint Toggle/Lock
+  const btnL1 = document.getElementById('btn-l1');
+  const l1Label = document.getElementById('l1-label');
+  btnL1.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    state.sprint_lock = !state.sprint_lock;
+    btnL1.classList.toggle('locked', state.sprint_lock);
+    l1Label.textContent = state.sprint_lock ? 'SPRINT ON' : 'SPRINT';
+    leftWell.classList.toggle('sprinting', state.sprint_lock || state.auto_sprint);
+    triggerHaptic('tap');
+    transmitState();
+  }, { passive: false });
+
+  // Explorer Quick-Swap Chips (Pip / Koko / Vesper)
+  document.querySelectorAll('.explorer-chip').forEach((chip) => {
+    const pick = (e) => {
+      e.preventDefault();
+      const cid = chip.dataset.char;
+      applyCharacterTheme(cid);
+      triggerHaptic('tap');
+      sendCommand('select_character', cid);
+    };
+    chip.addEventListener('touchstart', pick, { passive: false });
+    chip.addEventListener('click', pick);
+  });
+
+  // Pause Menu Button (≡)
+  const btnPause = document.getElementById('btn-pause');
+  const togglePause = (e) => {
+    e.preventDefault();
+    triggerHaptic('tap');
+    sendCommand('toggle_pause');
+  };
+  btnPause.addEventListener('touchstart', togglePause, { passive: false });
+  btnPause.addEventListener('click', togglePause);
+
+  // Title Screen: Begin Ascent CTA
+  const btnBegin = document.getElementById('btn-begin-ascent');
+  const startAscent = (e) => {
+    e.preventDefault();
+    triggerHaptic('shard');
+    sendCommand('begin_ascent');
+  };
+  btnBegin.addEventListener('touchstart', startAscent, { passive: false });
+  btnBegin.addEventListener('click', startAscent);
+
+  // Pause Drawer Actions: Resume, Restart, Realm Fast-Travel
+  const btnResume = document.getElementById('btn-resume-ascent');
+  btnResume.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    triggerHaptic('tap');
+    sendCommand('resume');
+  }, { passive: false });
+  btnResume.addEventListener('click', () => sendCommand('resume'));
+
+  const btnRestart = document.getElementById('btn-restart-climb');
+  btnRestart.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    triggerHaptic('rewind');
+    sendCommand('restart_climb');
+  }, { passive: false });
+  btnRestart.addEventListener('click', () => sendCommand('restart_climb'));
+
+  document.querySelectorAll('.realm-mini-btn').forEach((b) => {
+    const tp = (e) => {
+      e.preventDefault();
+      triggerHaptic('dash');
+      sendCommand('teleport_world', Number(b.dataset.world));
+    };
+    b.addEventListener('touchstart', tp, { passive: false });
+    b.addEventListener('click', tp);
+  });
+
+  // Optional Gyroscope Tilt-Aim (works on HTTPS tunnel or permissive contexts)
+  const btnGyro = document.getElementById('btn-gyro');
+  const gyroText = document.getElementById('gyro-text');
+  let lastGamma = null;
+  let lastBeta = null;
+
+  function onDeviceOrientation(e) {
+    if (!state.gyro_enabled || e.gamma === null || e.beta === null) return;
+    if (lastGamma !== null && lastBeta !== null) {
+      const dg = e.gamma - lastGamma;
+      const db = e.beta - lastBeta;
+      if (Math.abs(dg) < 25 && Math.abs(db) < 25) {
+        // Landscape orientation mapping
+        state.ldx += db * 1.4;
+        state.ldy -= dg * 1.1;
+      }
+    }
+    lastGamma = e.gamma;
+    lastBeta = e.beta;
+  }
+
+  btnGyro.addEventListener('click', async () => {
+    triggerHaptic('tap');
+    if (state.gyro_enabled) {
+      state.gyro_enabled = false;
+      btnGyro.classList.remove('active-toggle');
+      gyroText.textContent = 'Gyro';
+      return;
+    }
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const perm = await DeviceOrientationEvent.requestPermission();
+        if (perm !== 'granted') return;
+      }
+      window.addEventListener('deviceorientation', onDeviceOrientation);
+      state.gyro_enabled = true;
+      lastGamma = null;
+      lastBeta = null;
+      btnGyro.classList.add('active-toggle');
+      gyroText.textContent = 'Gyro On';
+    } catch (_) {}
+  });
+
+  // Dismiss Portrait Overlay manually if Orientation Lock is enabled
+  document.getElementById('dismiss-rotate-btn').addEventListener('click', () => {
+    document.getElementById('rotate-overlay').classList.add('dismissed');
+    triggerHaptic('tap');
+  });
+
+  // 60Hz High-Precision Control Loop + 1.5s Ping Heartbeat
+  setInterval(() => {
+    if (wsConnected || state.mx !== 0 || state.my !== 0 || state.cx !== 0 || state.cy !== 0 || state.ldx !== 0 || state.ldy !== 0) {
+      transmitState();
+    }
+  }, 16);
+
+  setInterval(() => {
+    if (wsConnected) {
+      lastPingTime = Date.now();
+      sendPacket({ t: 'ping' });
+    }
+  }, 1500);
+
+  connectWebSocket();
+})();
+</script>
+</body>
+</html>
