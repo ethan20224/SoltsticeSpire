@@ -295,6 +295,7 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
     z-index: 4;
+    transition: opacity 180ms ease;
   }
 
   .explorer-chip {
@@ -928,11 +929,11 @@
         <div class="stick-cap" id="left-stick-cap">
           <div class="stick-cap-inner" id="left-stick-readout">L3</div>
         </div>
-        <div class="stick-badge" id="left-stick-badge">MOVE · OUTER SPRINT</div>
+        <div class="stick-badge" id="left-stick-badge">WALK · EDGE SPRINT</div>
       </div>
     </div>
 
-    <div class="explorer-bar" role="group" aria-label="Switch Explorer">
+    <div class="explorer-bar" id="explorer-bar" role="group" aria-label="Switch Explorer">
       <div class="explorer-chip active" data-char="pip" id="char-pip" role="button">
         <span class="dot" style="background:#f9bd3d;"></span>
         <span>Pip</span>
@@ -953,7 +954,7 @@
     <div class="utility-row">
       <div class="pill-btn" id="btn-rewind-top" role="button" aria-label="Rewind to Shrine">
         <span>⟲</span>
-        <span>Shrine</span>
+        <span id="rewind-top-lbl">Shrine</span>
       </div>
       <div class="status-capsule" id="status-capsule">
         <span class="status-dot" id="status-dot"></span>
@@ -993,6 +994,17 @@
       </div>
 
       <div class="tp-hint" id="tp-hint">SWIPE TOUCHPAD OR RIGHT STICK TO ORBIT CAMERA</div>
+
+      <!-- Context Drawer: Opening Cutscene Mode -->
+      <div class="tp-context-drawer" id="drawer-cutscene">
+        <div style="text-align:center;">
+          <div style="font-size:10px;font-weight:800;color:var(--accent);letter-spacing:0.06em;">OPENING DESCENT</div>
+          <div style="font-size:13px;font-weight:900;color:var(--ink-primary);">SOLSTICE SPIRE · GRAND DESCENT</div>
+        </div>
+        <button type="button" class="cta-primary" id="btn-continue-cutscene" style="background:oklch(0.81 0.16 78);box-shadow:0 4px 18px oklch(0.81 0.16 78 / 0.45);">
+          <span>CONTINUE &nbsp;✕</span>
+        </button>
+      </div>
 
       <!-- Context Drawer: Title Screen Mode -->
       <div class="tp-context-drawer visible" id="drawer-title">
@@ -1060,7 +1072,7 @@
       <div class="action-diamond">
         <div class="face-btn btn-triangle" id="btn-triangle" role="button" aria-label="Triangle Rewind to Shrine">
           <span class="glyph">△</span>
-          <span class="lbl">SHRINE</span>
+          <span class="lbl" id="triangle-lbl">SHRINE</span>
         </div>
         <div class="face-btn btn-square" id="btn-square" role="button" aria-label="Square Air Dash or Orb Snap">
           <span class="glyph">□</span>
@@ -1275,8 +1287,10 @@
     }
   }
 
-  // Send continuous 60Hz state stream + immediate edge triggers
+  // Send continuous state stream (up to 120Hz during motion + 60Hz heartbeat) + immediate edge triggers
+  let lastTransmitMs = 0;
   function transmitState(extraEvent = null) {
+    lastTransmitMs = performance.now();
     const payload = {
       t: 'state',
       mx: Number(state.mx.toFixed(3)),
@@ -1299,6 +1313,12 @@
     sendPacket(payload);
   }
 
+  function transmitStateThrottled() {
+    if (performance.now() - lastTransmitMs >= 8) {
+      transmitState();
+    }
+  }
+
   function sendCommand(cmd, arg = null) {
     sendPacket({ t: 'cmd', cmd, arg });
   }
@@ -1311,12 +1331,16 @@
   const tpTimer = document.getElementById('tp-timer');
   const tpShards = document.getElementById('tp-shards');
   const tpFlow = document.getElementById('tp-flow');
+  const drawerCutscene = document.getElementById('drawer-cutscene');
   const drawerTitle = document.getElementById('drawer-title');
   const drawerPause = document.getElementById('drawer-pause');
+  const explorerBar = document.getElementById('explorer-bar');
   const btnSquare = document.getElementById('btn-square');
   const squareLbl = document.getElementById('square-lbl');
   const btnR2 = document.getElementById('btn-r2');
   const r2Label = document.getElementById('r2-label');
+  const triangleLbl = document.getElementById('triangle-lbl');
+  const rewindTopLbl = document.getElementById('rewind-top-lbl');
 
   const NUMERALS = ['REALM I', 'REALM II', 'REALM III', 'REALM IV', 'REALM V', 'REALM VI'];
 
@@ -1371,11 +1395,27 @@
         if (orbHot) triggerHaptic('tap');
       }
 
-      // Context Mode (title / playing / paused)
+      // 30-Second Rewind Window Telemetry Hint
+      if (msg.rewind_on && typeof msg.rewind_rem === 'number' && msg.rewind_rem > 0) {
+        const secText = `${Math.ceil(msg.rewind_rem)}s`;
+        triangleLbl.textContent = secText;
+        rewindTopLbl.textContent = `Shrine ${secText}`;
+      } else {
+        triangleLbl.textContent = 'SHRINE';
+        rewindTopLbl.textContent = 'Shrine';
+      }
+
+      // Context Mode (cutscene / title / playing / paused)
       if (msg.mode && msg.mode !== state.game_mode) {
         state.game_mode = msg.mode;
+        drawerCutscene.classList.toggle('visible', msg.mode === 'cutscene');
         drawerTitle.classList.toggle('visible', msg.mode === 'title');
         drawerPause.classList.toggle('visible', msg.mode === 'paused');
+        const lockExplorer = (msg.mode === 'playing' || msg.mode === 'paused' || msg.mode === 'cutscene' || msg.mode !== 'title');
+        if (explorerBar) {
+          explorerBar.style.pointerEvents = lockExplorer ? 'none' : 'auto';
+          explorerBar.style.opacity = lockExplorer ? '0.45' : '1';
+        }
       }
     }
   }
@@ -1406,19 +1446,21 @@
       state.mx = 0;
       state.my = 0;
     } else {
-      // Exact 1:1 full movement speed matching Mac WASD keyboard
-      state.mx = Math.cos(angle);
-      state.my = Math.sin(angle);
+      // Smooth quadratic-blended analog walk -> brisk run curve (precision on narrow ledges)
+      const rescaled = Math.min(1.0, (norm - 0.10) / 0.90);
+      const analogMag = rescaled * (0.45 + 0.55 * rescaled);
+      state.mx = Math.cos(angle) * analogMag;
+      state.my = Math.sin(angle) * analogMag;
     }
 
     const wasSprinting = state.auto_sprint;
-    state.auto_sprint = norm > 0.65;
+    state.auto_sprint = norm > 0.90;
     if (state.auto_sprint && !wasSprinting) {
       triggerHaptic('tap');
     }
     leftWell.classList.toggle('sprinting', state.auto_sprint || state.sprint_lock);
     leftReadout.textContent = (state.auto_sprint || state.sprint_lock) ? 'RUN' : 'L3';
-    leftBadge.textContent = (state.auto_sprint || state.sprint_lock) ? 'SPRINT ENGAGED' : 'MOVE · OUTER SPRINT';
+    leftBadge.textContent = (state.auto_sprint || state.sprint_lock) ? 'SPRINT ENGAGED' : 'WALK · EDGE SPRINT';
   }
 
   function resetLeftStick() {
@@ -1430,7 +1472,7 @@
     leftWell.classList.remove('active');
     leftWell.classList.toggle('sprinting', state.sprint_lock);
     leftReadout.textContent = state.sprint_lock ? 'RUN' : 'L3';
-    leftBadge.textContent = state.sprint_lock ? 'SPRINT LOCKED' : 'MOVE · OUTER SPRINT';
+    leftBadge.textContent = state.sprint_lock ? 'SPRINT LOCKED' : 'WALK · EDGE SPRINT';
     transmitState();
   }
 
@@ -1457,6 +1499,7 @@
       const t = e.changedTouches[i];
       if (t.identifier === leftTouchId) {
         updateLeftStick(t.clientX, t.clientY);
+        transmitStateThrottled();
         break;
       }
     }
@@ -1493,11 +1536,11 @@
     rightCap.style.transform = `translate3d(${px.toFixed(1)}px, ${py.toFixed(1)}px, 0)`;
 
     const norm = clampedDist / maxR;
-    if (norm < 0.10) {
+    if (norm < 0.07) {
       state.cx = 0;
       state.cy = 0;
     } else {
-      const rescaled = (norm - 0.10) / 0.90;
+      const rescaled = Math.min(1.0, (norm - 0.07) / 0.93);
       state.cx = Math.cos(angle) * rescaled;
       state.cy = Math.sin(angle) * rescaled;
     }
@@ -1529,6 +1572,7 @@
     rightWell.classList.add('active');
     triggerHaptic('tap');
     updateRightStick(t.clientX, t.clientY);
+    transmitState();
   }, { passive: false });
 
   rightZone.addEventListener('touchmove', (e) => {
@@ -1538,6 +1582,7 @@
       const t = e.changedTouches[i];
       if (t.identifier === rightTouchId) {
         updateRightStick(t.clientX, t.clientY);
+        transmitStateThrottled();
         break;
       }
     }
@@ -1559,7 +1604,7 @@
 
   function attachLookTrackpad(element, sensitivity = 1.0) {
     element.addEventListener('touchstart', (e) => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button, [role="button"], .face-btn, .trigger-btn, .cam-stick-well')) return;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         activeLookTouches.set(t.identifier, { x: t.clientX, y: t.clientY, sens: sensitivity });
@@ -1567,6 +1612,7 @@
     }, { passive: true });
 
     element.addEventListener('touchmove', (e) => {
+      let moved = false;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         const prev = activeLookTouches.get(t.identifier);
@@ -1575,8 +1621,10 @@
           state.ldy += (t.clientY - prev.y) * prev.sens;
           prev.x = t.clientX;
           prev.y = t.clientY;
+          moved = true;
         }
       }
+      if (moved) transmitStateThrottled();
     }, { passive: true });
 
     const endTrack = (e) => {
@@ -1598,6 +1646,7 @@
 
     const onDown = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       if (activeTouch !== null) return;
       const t = e.changedTouches ? e.changedTouches[0] : e;
       activeTouch = t.identifier ?? 'mouse';
@@ -1609,7 +1658,9 @@
     };
 
     const onMove = (e) => {
+      e.stopPropagation();
       if (activeTouch === null || !e.changedTouches) return;
+      let moved = false;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier === activeTouch && prevPos) {
@@ -1617,8 +1668,10 @@
           state.ldx += (t.clientX - prevPos.x);
           state.ldy += (t.clientY - prevPos.y);
           prevPos = { x: t.clientX, y: t.clientY };
+          moved = true;
         }
       }
+      if (moved) transmitStateThrottled();
     };
 
     const onUp = (e) => {
@@ -1674,10 +1727,11 @@
     transmitState();
   }, { passive: false });
 
-  // Explorer Quick-Swap Chips (Pip / Koko / Vesper)
+  // Explorer Quick-Swap Chips (Pip / Koko / Vesper — Title Screen only)
   document.querySelectorAll('.explorer-chip').forEach((chip) => {
     const pick = (e) => {
       e.preventDefault();
+      if (state.game_mode !== 'title') return;
       const cid = chip.dataset.char;
       applyCharacterTheme(cid);
       triggerHaptic('tap');
@@ -1696,6 +1750,17 @@
   };
   btnPause.addEventListener('touchstart', togglePause, { passive: false });
   btnPause.addEventListener('click', togglePause);
+
+  // Opening Cutscene: Continue CTA
+  const btnContinueCutscene = document.getElementById('btn-continue-cutscene');
+  const continueCutscene = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerHaptic('shard');
+    sendCommand('continue_cutscene');
+  };
+  btnContinueCutscene.addEventListener('touchstart', continueCutscene, { passive: false });
+  btnContinueCutscene.addEventListener('click', continueCutscene);
 
   // Title Screen: Begin Ascent CTA
   const btnBegin = document.getElementById('btn-begin-ascent');

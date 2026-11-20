@@ -15,6 +15,9 @@ var _target_biome: int = 0
 var _biome_weights: Array[float] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 var _flow_level: float = 0.0
 var _music_ready: bool = false
+var _music_mix_gain: float = 1.0
+var _target_music_gain: float = 1.0
+var _ambience_tween: Tween
 
 
 func _ready() -> void:
@@ -89,6 +92,9 @@ func _setup_music_stems() -> void:
 
 func _exit_tree() -> void:
 	_music_ready = false
+	if _ambience_tween and _ambience_tween.is_valid():
+		_ambience_tween.kill()
+	_ambience_tween = null
 	for p in _base_players:
 		if is_instance_valid(p):
 			p.stop()
@@ -110,7 +116,8 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if not _music_ready:
 		return
-	var master_scale := GameState.music_volume * (0.45 if GameState.is_paused else 1.0)
+	_music_mix_gain = lerpf(_music_mix_gain, _target_music_gain, clampf(delta * 1.5, 0.0, 1.0))
+	var master_scale := GameState.music_volume * _music_mix_gain * (0.45 if GameState.is_paused else 1.0)
 	for i in range(BIOME_TRACKS.size()):
 		var desired := 1.0 if i == _target_biome else 0.0
 		_biome_weights[i] = lerpf(_biome_weights[i], desired, clampf(delta * 1.4, 0.0, 1.0))
@@ -130,13 +137,53 @@ func set_biome_immediate(world_idx: int) -> void:
 		_biome_weights[i] = 1.0 if i == _target_biome else 0.0
 
 
+func play_loading_ambience() -> void:
+	## Gently fades in soft World 1 musical base stem & spaced distant pentatonic chimes.
+	set_biome_immediate(0)
+	_flow_level = 0.0
+	_music_mix_gain = 0.0
+	_target_music_gain = 0.42
+	if _ambience_tween and _ambience_tween.is_valid():
+		_ambience_tween.kill()
+	_ambience_tween = create_tween()
+	_ambience_tween.tween_interval(0.55)
+	_ambience_tween.tween_callback(func(): play_flow_chime(0, -11.5))
+	_ambience_tween.tween_interval(1.25)
+	_ambience_tween.tween_callback(func(): play_flow_chime(2, -10.5))
+	_ambience_tween.tween_interval(1.30)
+	_ambience_tween.tween_callback(func(): play_flow_chime(4, -9.8))
+
+
+func swell_into_cutscene() -> void:
+	## Smoothly swells music from soft loading ambience to full lush cutscene volume.
+	if _ambience_tween and _ambience_tween.is_valid():
+		_ambience_tween.kill()
+	_ambience_tween = null
+	_target_music_gain = 1.0
+	play_flow_chime(5, -7.5)
+
+
+func set_music_volume(val: float, persist: bool = true) -> void:
+	GameState.music_volume = clampf(val, 0.0, 1.0)
+	if persist:
+		GameState.save_persistent_data()
+
+
+func set_sfx_volume(val: float, persist: bool = true) -> void:
+	GameState.sfx_volume = clampf(val, 0.0, 1.0)
+	if persist:
+		GameState.save_persistent_data()
+
+
 func play_sfx(sname: String, volume_db: float = 0.0, pitch: float = 1.0) -> void:
 	if not _sfx_cache.has(sname):
+		return
+	if GameState.sfx_volume <= 0.01:
 		return
 	var p: AudioStreamPlayer = _sfx_pool[_sfx_idx]
 	_sfx_idx = (_sfx_idx + 1) % _sfx_pool.size()
 	p.stream = _sfx_cache[sname]
-	p.volume_db = volume_db
+	p.volume_db = volume_db + linear_to_db(maxf(GameState.sfx_volume, 0.001))
 	p.pitch_scale = clampf(pitch, 0.4, 2.8)
 	p.play()
 

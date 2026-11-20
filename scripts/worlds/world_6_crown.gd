@@ -65,9 +65,11 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_catenary_lanterns(self, Vector3(9.5, 1040.5, -21.5), Vector3(6.5, 1042.0, -14.5), 5, 0.95, Color(1.0, 0.68, 0.30))
 	WorldHelper.add_catenary_lanterns(self, Vector3(-19.5, 1068.0, -1.5), Vector3(-12.5, 1069.5, -1.0), 5, 0.95, Color(1.0, 0.68, 0.30))
 
-	WorldHelper.add_wall_run(self, MONOLITH, Vector3(28.5, 926.0, -4.5), Vector3(0.0, -82.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(23.5, 929.5, -14.5), 0.60, true, Vector3.ZERO, audit)
+	WorldHelper.add_wall_run(self, MONOLITH, Vector3(28.5, 924.4, -4.5), Vector3(0.0, -82.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(23.5, 929.5, -14.5), 0.80, true, Vector3.ZERO, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(23.5, 930.2, -14.5), Vector3(14.0, 938.5, -22.5), 3.0, 4)
 	WorldHelper.add_tether_orb(self, Vector3(14.0, 938.5, -22.5), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(14.0, 938.5, -22.5), Vector3(3.5, 943.2, -26.5), 2.4, 3)
 	WorldHelper.add_sun_shard(self, "w6_s1", Vector3(14.0, 943.5, -22.5))
 
 	var p1_in := Vector3(3.5, 942.5, -26.5)
@@ -75,11 +77,13 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_dressing_cluster(self, BRAZIER, p1_in + Vector3(1.8, 0.0, -1.6), 0.0, STYLE, Color(1.0, 0.74, 0.28))
 	var p1_out := Vector3(-14.0, 963.0, -22.0)
 	WorldHelper.add_portal_pair(self, p1_in, 82.0, p1_out, 125.0, 17.5, audit)
+	WorldHelper.add_solar_mote_arc(self, p1_out + Vector3(-1.5, 1.5, 1.0), Vector3(-22.5, 963.2, -13.5), 2.2, 3)
 
 	var d2 := Vector3(-22.5, 962.5, -13.5)
 	WorldHelper.add_static_cyl_platform(self, DAIS, d2, 3.0, 0.8, Vector3(1.1, 1.0, 1.1), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, BRAZIER, d2 + Vector3(-1.9, 0.0, -1.5), 45.0, STYLE, Color(1.0, 0.74, 0.28))
 	WorldHelper.add_bounce_pad(self, VENT, Vector3(-26.5, 965.5, -4.0), 23.5, 2.4, Vector3(0.0, 0.0, 3.5), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-26.5, 966.5, -4.0), Vector3(-26.0, 976.8, 6.5), 4.0, 4)
 
 	# Checkpoint 2: Solar Perigee Dais (Y = 976m)
 	var cp2 := Vector3(-26.0, 976.0, 6.5)
@@ -90,12 +94,14 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# =========================================================================
 	# ACT 17 (976m -> 1,034m): The Golden Remix Gauntlet
 	# =========================================================================
-	WorldHelper.add_wall_run(self, MONOLITH, Vector3(-22.5, 980.0, 17.5), Vector3(0.0, 54.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
+	WorldHelper.add_wall_run(self, MONOLITH, Vector3(-22.5, 978.6, 17.5), Vector3(0.0, 54.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
 	WorldHelper.add_spinning_gear(self, Vector3(-13.0, 983.5, 24.5), 40.0, 1.05, audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-3.0, 987.0, 26.5), 0.60, true, Vector3.ZERO, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-3.0, 987.0, 26.5), 0.80, true, Vector3.ZERO, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-3.0, 987.8, 26.5), Vector3(11.0, 1001.0, 23.5), 3.6, 4)
 
 	WorldHelper.add_gravity_bubble(self, Vector3(8.5, 998.0, 24.5), 11.5, audit)
 	WorldHelper.add_tether_orb(self, Vector3(11.0, 1001.0, 23.5), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(11.0, 1001.0, 23.5), Vector3(20.5, 1007.2, 17.5), 2.5, 3)
 	WorldHelper.add_sun_shard(self, "w6_s2", Vector3(8.5, 1007.5, 24.5))
 
 	var d3 := Vector3(20.5, 1006.5, 17.5)
@@ -103,7 +109,9 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_dressing_cluster(self, BRAZIER, d3 + Vector3(1.8, 0.0, 1.5), -45.0, STYLE, Color(1.0, 0.74, 0.28))
 	WorldHelper.add_wall_run(self, MONOLITH, Vector3(28.5, 1011.0, 7.5), Vector3(0.0, -78.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
 	WorldHelper.add_bounce_pad(self, JELLY, Vector3(26.0, 1014.5, -3.5), 24.5, 2.5, Vector3(-1.5, 0.0, -3.5), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(26.0, 1015.5, -3.5), Vector3(19.0, 1029.5, -16.0), 4.5, 4)
 	WorldHelper.add_tether_orb(self, Vector3(19.0, 1029.5, -16.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(19.0, 1029.5, -16.0), Vector3(10.5, 1033.8, -23.5), 2.4, 3)
 
 	# Checkpoint 3: Last Threshold before the Summit Crown (Y = 1,033m)
 	var cp3 := Vector3(10.5, 1033.0, -23.5)
@@ -115,15 +123,17 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# ACT 18 (1,033m -> 1,085m): Final Zenith Leap to The Crown of the Sun!
 	# =========================================================================
 	WorldHelper.add_folding_tile(self, Vector3(1.5, 1036.2, -26.5), Vector3(0.0, 88.0, 0.0), audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-7.0, 1039.5, -25.5), 0.60, true, Vector3.ZERO, audit)
-	WorldHelper.add_wall_run(self, MONOLITH, Vector3(-18.5, 1044.0, -21.5), Vector3(0.0, 44.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
-	WorldHelper.add_bounce_pad(self, VENT, Vector3(-24.5, 1047.5, -11.5), 25.0, 2.5, Vector3(2.0, 0.0, 3.0), STYLE, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-7.0, 1039.5, -25.5), 0.80, true, Vector3.ZERO, audit)
+	WorldHelper.add_wall_run(self, MONOLITH, Vector3(-18.5, 1042.5, -21.5), Vector3(0.0, 44.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
+	WorldHelper.add_bounce_pad(self, VENT, Vector3(-24.5, 1047.5, -11.5), 26.6, 2.5, Vector3(3.0, 0.0, 5.2), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-24.5, 1048.5, -11.5), Vector3(-21.0, 1060.8, -1.5), 4.6, 5)
 
 	var pf_in := Vector3(-21.0, 1060.0, -1.5)
 	WorldHelper.add_static_cyl_platform(self, DAIS, pf_in, 3.0, 0.8, Vector3(1.1, 1.0, 1.1), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, BRAZIER, pf_in + Vector3(-1.8, 0.0, 1.6), 30.0, STYLE, Color(1.0, 0.74, 0.28))
 	var pf_out := Vector3(-14.5, 1078.0, 0.0)
 	WorldHelper.add_portal_pair(self, pf_in, -85.0, pf_out, -90.0, 16.5, audit)
+	WorldHelper.add_solar_mote_arc(self, pf_out + Vector3(1.5, 1.5, 0.0), Vector3(0.0, 1085.5, 0.0), 3.6, 5)
 	WorldHelper.add_sun_shard(self, "w6_s3", Vector3(-9.5, 1086.5, 0.0))
 
 	# THE SUMMIT CROWN SANCTUARY OVERLOOK (Centered at (0, 1084.5, 0))

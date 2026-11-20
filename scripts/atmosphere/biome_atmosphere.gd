@@ -15,137 +15,137 @@ var _current_y: float = 0.0
 # Curated AAA-indie color palettes anchored at each world's midpoint altitude
 # Tuned for sculpted shadow depth (~18% lower ambient) + volumetric god-ray haze + warm practical contrast!
 const BIOME_PALETTES := [
-	# 0: Sunken Conservatory - Vivid Ghibli Azure Sky, Warm Sunlit Gold & Cool Cobalt Shadows
+	# 0: Sunken Conservatory - Astro Bot Vivid Cerulean-Turquoise Sky & Golden Little Prince Horizon
 	{
 		"y": 40.0,
-		"zenith": Color(0.05, 0.22, 0.60),
-		"mid_sky": Color(0.17, 0.50, 0.84),
-		"horizon": Color(0.92, 0.78, 0.56),
-		"abyss": Color(0.42, 0.58, 0.76),
-		"sun_col": Color(1.0, 0.91, 0.70),
-		"sun_energy": 1.32,
+		"zenith": Color(0.06, 0.32, 0.74),
+		"mid_sky": Color(0.18, 0.62, 0.92),
+		"horizon": Color(0.98, 0.88, 0.64),
+		"abyss": Color(0.56, 0.72, 0.88),
+		"sun_col": Color(1.0, 0.94, 0.76),
+		"sun_energy": 1.55,
 		"sun_rot": Vector3(-36.0, 34.0, 0.0),
-		"fog_col": Color(0.56, 0.72, 0.86),
-		"fog_density": 0.0011,
-		"vol_fog_density": 0.0028,
-		"ambient_col": Color(0.26, 0.42, 0.66),
-		"ambient_energy": 0.34,
-		"cloud_crest": Color(0.96, 0.92, 0.84),
-		"cloud_valley": Color(0.45, 0.60, 0.78),
-		"cloud_cov": 0.48,
-		"stars": 0.0,
-		"aurora": 0.0,
-		"glow": 0.28,
-	},
-	# 1: Foundry of Floating Bells - Dramatic Golden Hour Burnt Amber & Deep Plum Twilight
-	{
-		"y": 240.0,
-		"zenith": Color(0.10, 0.12, 0.34),
-		"mid_sky": Color(0.52, 0.25, 0.32),
-		"horizon": Color(0.96, 0.56, 0.24),
-		"abyss": Color(0.38, 0.22, 0.28),
-		"sun_col": Color(1.0, 0.74, 0.36),
-		"sun_energy": 1.42,
-		"sun_rot": Vector3(-22.0, 56.0, 0.0),
-		"fog_col": Color(0.72, 0.44, 0.30),
-		"fog_density": 0.0012,
-		"vol_fog_density": 0.0038,
-		"ambient_col": Color(0.38, 0.24, 0.34),
-		"ambient_energy": 0.34,
-		"cloud_crest": Color(0.96, 0.74, 0.48),
-		"cloud_valley": Color(0.34, 0.22, 0.36),
-		"cloud_cov": 0.52,
+		"fog_col": Color(0.64, 0.80, 0.94),
+		"fog_density": 0.00075,
+		"vol_fog_density": 0.0018,
+		"ambient_col": Color(0.30, 0.50, 0.76),
+		"ambient_energy": 0.40,
+		"cloud_crest": Color(1.0, 0.97, 0.90),
+		"cloud_valley": Color(0.54, 0.68, 0.88),
+		"cloud_cov": 0.46,
 		"stars": 0.0,
 		"aurora": 0.0,
 		"glow": 0.32,
 	},
-	# 2: The Origami Monsoon - Lush Deep Jade-Teal Twilight & Warm Paper-Lantern Glow
+	# 1: Foundry of Floating Bells - Molten Bronze & Burnished Amber Sunset Drama
 	{
-		"y": 430.0,
-		"zenith": Color(0.025, 0.09, 0.19),
-		"mid_sky": Color(0.06, 0.26, 0.38),
-		"horizon": Color(0.22, 0.50, 0.56),
-		"abyss": Color(0.07, 0.17, 0.25),
-		"sun_col": Color(0.84, 0.94, 0.98),
-		"sun_energy": 1.18,
-		"sun_rot": Vector3(-30.0, -35.0, 0.0),
-		"fog_col": Color(0.12, 0.32, 0.40),
-		"fog_density": 0.0013,
-		"vol_fog_density": 0.0044,
-		"ambient_col": Color(0.18, 0.38, 0.48),
+		"y": 240.0,
+		"zenith": Color(0.12, 0.14, 0.38),
+		"mid_sky": Color(0.58, 0.26, 0.32),
+		"horizon": Color(1.0, 0.58, 0.22),
+		"abyss": Color(0.42, 0.24, 0.30),
+		"sun_col": Color(1.0, 0.76, 0.38),
+		"sun_energy": 1.50,
+		"sun_rot": Vector3(-22.0, 56.0, 0.0),
+		"fog_col": Color(0.76, 0.46, 0.30),
+		"fog_density": 0.00095,
+		"vol_fog_density": 0.0028,
+		"ambient_col": Color(0.42, 0.26, 0.38),
 		"ambient_energy": 0.38,
-		"cloud_crest": Color(0.56, 0.78, 0.84),
-		"cloud_valley": Color(0.09, 0.21, 0.32),
-		"cloud_cov": 0.58,
-		"stars": 0.20,
+		"cloud_crest": Color(1.0, 0.78, 0.48),
+		"cloud_valley": Color(0.38, 0.24, 0.42),
+		"cloud_cov": 0.50,
+		"stars": 0.0,
 		"aurora": 0.0,
 		"glow": 0.34,
 	},
-	# 3: The Shattered Mirror Gallery - Rich Velvet Plum, Rose Dusk & Iridescent Lavender
+	# 2: The Origami Monsoon - Luminous Jade-Teal Lantern Twilight & Wet Sheen Contrast
+	{
+		"y": 430.0,
+		"zenith": Color(0.03, 0.11, 0.24),
+		"mid_sky": Color(0.07, 0.32, 0.46),
+		"horizon": Color(0.26, 0.58, 0.62),
+		"abyss": Color(0.09, 0.21, 0.30),
+		"sun_col": Color(0.86, 0.96, 1.0),
+		"sun_energy": 1.26,
+		"sun_rot": Vector3(-30.0, -35.0, 0.0),
+		"fog_col": Color(0.14, 0.36, 0.46),
+		"fog_density": 0.0010,
+		"vol_fog_density": 0.0034,
+		"ambient_col": Color(0.20, 0.42, 0.54),
+		"ambient_energy": 0.42,
+		"cloud_crest": Color(0.62, 0.84, 0.88),
+		"cloud_valley": Color(0.12, 0.26, 0.40),
+		"cloud_cov": 0.56,
+		"stars": 0.25,
+		"aurora": 0.0,
+		"glow": 0.36,
+	},
+	# 3: The Shattered Mirror Gallery - Luminous Jewel-Rose Dusk & Iridescent Lavender
 	{
 		"y": 620.0,
-		"zenith": Color(0.09, 0.05, 0.25),
-		"mid_sky": Color(0.34, 0.16, 0.48),
-		"horizon": Color(0.84, 0.44, 0.62),
-		"abyss": Color(0.20, 0.11, 0.34),
-		"sun_col": Color(1.0, 0.84, 0.90),
-		"sun_energy": 1.28,
+		"zenith": Color(0.10, 0.06, 0.30),
+		"mid_sky": Color(0.40, 0.18, 0.56),
+		"horizon": Color(0.92, 0.48, 0.68),
+		"abyss": Color(0.24, 0.13, 0.40),
+		"sun_col": Color(1.0, 0.86, 0.92),
+		"sun_energy": 1.36,
 		"sun_rot": Vector3(-28.0, 115.0, 0.0),
-		"fog_col": Color(0.46, 0.26, 0.52),
-		"fog_density": 0.0012,
-		"vol_fog_density": 0.0042,
-		"ambient_col": Color(0.38, 0.24, 0.52),
-		"ambient_energy": 0.38,
-		"cloud_crest": Color(0.90, 0.68, 0.86),
-		"cloud_valley": Color(0.22, 0.14, 0.38),
-		"cloud_cov": 0.42,
-		"stars": 0.55,
-		"aurora": 0.25,
-		"glow": 0.35,
+		"fog_col": Color(0.50, 0.28, 0.58),
+		"fog_density": 0.0009,
+		"vol_fog_density": 0.0032,
+		"ambient_col": Color(0.42, 0.26, 0.58),
+		"ambient_energy": 0.40,
+		"cloud_crest": Color(0.96, 0.72, 0.90),
+		"cloud_valley": Color(0.26, 0.16, 0.44),
+		"cloud_cov": 0.40,
+		"stars": 0.60,
+		"aurora": 0.30,
+		"glow": 0.36,
 	},
-	# 4: The Cloud-Whale Library - Deep Midnight Indigo, Radiant Aurora & Cozy Amber Reading Nooks
+	# 4: The Cloud-Whale Library - Vivid Starry Aurora Night & Cozy Amber Reading Nooks
 	{
 		"y": 810.0,
-		"zenith": Color(0.015, 0.025, 0.09),
-		"mid_sky": Color(0.04, 0.10, 0.26),
-		"horizon": Color(0.12, 0.34, 0.50),
-		"abyss": Color(0.025, 0.05, 0.14),
-		"sun_col": Color(0.76, 0.92, 1.0),
-		"sun_energy": 1.08,
+		"zenith": Color(0.02, 0.035, 0.12),
+		"mid_sky": Color(0.05, 0.13, 0.34),
+		"horizon": Color(0.14, 0.42, 0.60),
+		"abyss": Color(0.03, 0.07, 0.18),
+		"sun_col": Color(0.78, 0.94, 1.0),
+		"sun_energy": 1.15,
 		"sun_rot": Vector3(-42.0, -70.0, 0.0),
-		"fog_col": Color(0.07, 0.18, 0.32),
-		"fog_density": 0.0010,
-		"vol_fog_density": 0.0060,
-		"ambient_col": Color(0.16, 0.30, 0.50),
-		"ambient_energy": 0.36,
-		"cloud_crest": Color(0.32, 0.72, 0.78),
-		"cloud_valley": Color(0.04, 0.09, 0.20),
-		"cloud_cov": 0.30,
-		"stars": 1.30,
-		"aurora": 1.25,
+		"fog_col": Color(0.08, 0.22, 0.38),
+		"fog_density": 0.0008,
+		"vol_fog_density": 0.0044,
+		"ambient_col": Color(0.18, 0.34, 0.56),
+		"ambient_energy": 0.38,
+		"cloud_crest": Color(0.38, 0.80, 0.86),
+		"cloud_valley": Color(0.06, 0.12, 0.28),
+		"cloud_cov": 0.28,
+		"stars": 1.40,
+		"aurora": 1.35,
 		"glow": 0.38,
 	},
-	# 5: The Crown of the Sun - Deep Cosmic Indigo Zenith & Burnished Celestial Gold Horizon
+	# 5: The Crown of the Sun - Transcendent Cosmic-Gold Summit
 	{
 		"y": 1000.0,
-		"zenith": Color(0.012, 0.015, 0.068),
-		"mid_sky": Color(0.10, 0.07, 0.25),
-		"horizon": Color(0.88, 0.60, 0.22),
-		"abyss": Color(0.07, 0.05, 0.17),
-		"sun_col": Color(1.0, 0.86, 0.50),
-		"sun_energy": 1.48,
+		"zenith": Color(0.015, 0.02, 0.085),
+		"mid_sky": Color(0.13, 0.09, 0.32),
+		"horizon": Color(0.96, 0.66, 0.26),
+		"abyss": Color(0.09, 0.06, 0.22),
+		"sun_col": Color(1.0, 0.88, 0.52),
+		"sun_energy": 1.56,
 		"sun_rot": Vector3(-20.0, 24.0, 0.0),
-		"fog_col": Color(0.46, 0.32, 0.20),
-		"fog_density": 0.0008,
-		"vol_fog_density": 0.0042,
-		"ambient_col": Color(0.34, 0.28, 0.30),
-		"ambient_energy": 0.38,
-		"cloud_crest": Color(0.92, 0.74, 0.42),
-		"cloud_valley": Color(0.14, 0.10, 0.26),
+		"fog_col": Color(0.52, 0.36, 0.22),
+		"fog_density": 0.00065,
+		"vol_fog_density": 0.0030,
+		"ambient_col": Color(0.38, 0.30, 0.34),
+		"ambient_energy": 0.40,
+		"cloud_crest": Color(0.98, 0.80, 0.46),
+		"cloud_valley": Color(0.18, 0.12, 0.34),
 		"cloud_cov": 0.20,
-		"stars": 1.45,
-		"aurora": 0.55,
-		"glow": 0.36,
+		"stars": 1.50,
+		"aurora": 0.65,
+		"glow": 0.38,
 	},
 ]
 
@@ -162,6 +162,10 @@ func _ensure_sky_and_env() -> void:
 		sun_light = get_node_or_null("SunLight")
 	if not cloud_sea_mesh:
 		cloud_sea_mesh = get_node_or_null("CloudSea")
+	if not cloud_sea_mesh and get_parent():
+		var sw_deck := get_parent().get_node_or_null("SpireWorld/CloudDeck_0")
+		if sw_deck is MeshInstance3D:
+			cloud_sea_mesh = sw_deck as MeshInstance3D
 
 	if world_environment and world_environment.environment:
 		var env := world_environment.environment
@@ -220,15 +224,22 @@ func apply_for_altitude(y_pos: float, instant: bool = false) -> void:
 		_sky_mat.set_shader_parameter("star_intensity", lerpf(a["stars"], b["stars"], t))
 		_sky_mat.set_shader_parameter("aurora_intensity", lerpf(a["aurora"], b["aurora"], t))
 
+	if not _cloud_mat:
+		_ensure_sky_and_env()
+
 	if _cloud_mat:
 		_cloud_mat.set_shader_parameter("crest_color", a["cloud_crest"].lerp(b["cloud_crest"], t))
 		_cloud_mat.set_shader_parameter("valley_color", a["cloud_valley"].lerp(b["cloud_valley"], t))
+		_cloud_mat.set_shader_parameter("horizon_glow_color", a["horizon"].lerp(b["horizon"], t))
 
 	if sun_light:
 		sun_light.light_color = a["sun_col"].lerp(b["sun_col"], t)
 		sun_light.light_energy = lerpf(a["sun_energy"], b["sun_energy"], t)
 		var rot_deg: Vector3 = a["sun_rot"].lerp(b["sun_rot"], t)
 		sun_light.rotation_degrees = rot_deg
+		if _cloud_mat:
+			var sun_dir := sun_light.global_transform.basis.z.normalized()
+			_cloud_mat.set_shader_parameter("sun_direction", sun_dir)
 
 	if world_environment and world_environment.environment:
 		var env := world_environment.environment

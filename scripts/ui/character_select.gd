@@ -7,17 +7,22 @@ class_name CharacterSelectUI
 
 signal character_highlighted(char_id: String)
 signal ascent_started()
+signal guide_settings_requested()
 
 const ORDER := ["pip", "koko", "vesper"]
 const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
+
+var input_blocked: bool = false
 
 var _card_buttons: Dictionary = {}
 var _name_label: Label
 var _title_label: Label
 var _tagline_label: Label
+var _perk_label: Label
 var _hero_block: VBoxContainer
 var _bottom_dock: VBoxContainer
 var _ctrl_dock: VBoxContainer
+var _guide_btn: Button
 var _kb_mode_btn: Button
 var _phone_mode_btn: Button
 var _pairing_panel: PanelContainer
@@ -38,7 +43,7 @@ func _ready() -> void:
 		_refresh_controller_mode_buttons()
 	)
 	PhoneController.remote_begin_ascent.connect(func():
-		if visible:
+		if visible and not input_blocked:
 			_on_begin_pressed()
 	)
 
@@ -70,10 +75,10 @@ func _build_ui() -> void:
 	UITheme.apply_font(lead, "semibold", 18, UITheme.INK_PRIMARY, 0.38, 2)
 	_hero_block.add_child(lead)
 
-	# TOP-RIGHT CONTROLLER MODE SELECTOR + EXPANDABLE IPHONE QR PAIRING CARD
+	# TOP-RIGHT GUIDE & SETTINGS + CONTROLLER MODE SELECTOR + EXPANDABLE IPHONE QR PAIRING CARD
 	_ctrl_dock = VBoxContainer.new()
 	_ctrl_dock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_ctrl_dock.offset_left = -384
+	_ctrl_dock.offset_left = -640
 	_ctrl_dock.offset_right = -42
 	_ctrl_dock.offset_top = 34
 	_ctrl_dock.offset_bottom = 520
@@ -81,10 +86,27 @@ func _build_ui() -> void:
 	_ctrl_dock.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_ctrl_dock)
 
+	var top_bar := HBoxContainer.new()
+	top_bar.size_flags_horizontal = Control.SIZE_SHRINK_END
+	top_bar.alignment = BoxContainer.ALIGNMENT_END
+	top_bar.add_theme_constant_override("separation", 10)
+	top_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ctrl_dock.add_child(top_bar)
+
+	_guide_btn = Button.new()
+	_guide_btn.text = "Guide & Settings"
+	_guide_btn.custom_minimum_size = Vector2(162, 50)
+	UITheme.style_secondary_pill(_guide_btn, false, 14)
+	_guide_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.05)
+		guide_settings_requested.emit()
+	)
+	top_bar.add_child(_guide_btn)
+
 	var mode_pill := PanelContainer.new()
 	mode_pill.size_flags_horizontal = Control.SIZE_SHRINK_END
 	mode_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 999, 14, 8, 1))
-	_ctrl_dock.add_child(mode_pill)
+	top_bar.add_child(mode_pill)
 
 	var mode_row := HBoxContainer.new()
 	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -131,26 +153,31 @@ func _build_ui() -> void:
 	# BOTTOM AIRY FLOATING SELECTOR DOCK
 	_bottom_dock = VBoxContainer.new()
 	_bottom_dock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_bottom_dock.offset_left = 180
-	_bottom_dock.offset_right = -180
-	_bottom_dock.offset_top = -172
-	_bottom_dock.offset_bottom = -28
+	_bottom_dock.offset_left = 140
+	_bottom_dock.offset_right = -140
+	_bottom_dock.offset_top = -194
+	_bottom_dock.offset_bottom = -26
 	_bottom_dock.alignment = BoxContainer.ALIGNMENT_CENTER
 	_bottom_dock.add_theme_constant_override("separation", 12)
 	add_child(_bottom_dock)
 
-	# Sleek floating explorer caption pill
+	# Sleek floating explorer caption pill with signature perk chip
 	var caption_center := CenterContainer.new()
 	_bottom_dock.add_child(caption_center)
 
 	var caption_pill := PanelContainer.new()
-	caption_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 999, 24, 9, 1))
+	caption_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 24, 24, 10, 1))
 	caption_center.add_child(caption_pill)
+
+	var cap_v := VBoxContainer.new()
+	cap_v.alignment = BoxContainer.ALIGNMENT_CENTER
+	cap_v.add_theme_constant_override("separation", 4)
+	caption_pill.add_child(cap_v)
 
 	var cap_row := HBoxContainer.new()
 	cap_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	cap_row.add_theme_constant_override("separation", 10)
-	caption_pill.add_child(cap_row)
+	cap_v.add_child(cap_row)
 
 	_name_label = Label.new()
 	UITheme.apply_font(_name_label, "heavy", 19, UITheme.INK_PRIMARY)
@@ -163,6 +190,11 @@ func _build_ui() -> void:
 	_tagline_label = Label.new()
 	UITheme.apply_font(_tagline_label, "medium", 14, UITheme.INK_SECONDARY)
 	cap_row.add_child(_tagline_label)
+
+	_perk_label = Label.new()
+	_perk_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.apply_font(_perk_label, "bold", 13, UITheme.ACCENT_AMBER)
+	cap_v.add_child(_perk_label)
 
 	# Floating Pill Row: Warm Cream Selected Explorer + Sole Honey-Amber Begin Ascent CTA
 	var row := HBoxContainer.new()
@@ -226,6 +258,7 @@ func _select_character(cid: String, play_sound: bool) -> void:
 	_name_label.text = info["name"]
 	_title_label.text = info["title"]
 	_tagline_label.text = info["tagline"]
+	_perk_label.text = "✦ %s: %s" % [info["perk_title"], info["perk_desc"]]
 
 	for k in ORDER:
 		var btn: Button = _card_buttons[k]
@@ -244,7 +277,7 @@ func _on_begin_pressed() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible:
+	if not visible or input_blocked:
 		return
 	if event.is_action_pressed("character_1"):
 		_select_character("pip", true)

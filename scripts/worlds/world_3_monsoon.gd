@@ -84,7 +84,9 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 
 	# Joyful Silk Parasol Aerial Bounce Cascade
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(17.0, 358.5, -20.5), 22.0, 2.4, Vector3(-3.0, 0.0, -2.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(17.0, 359.5, -20.5), Vector3(8.5, 369.0, -26.0), 4.0, 4)
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(8.5, 368.0, -26.0), 22.5, 2.4, Vector3(-3.5, 0.0, 0.5), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(8.5, 369.0, -26.0), Vector3(-2.0, 378.2, -26.5), 4.2, 4)
 	var pg1 := Vector3(-2.0, 377.5, -26.5)
 	WorldHelper.add_static_box_platform(self, PAGODA, pg1, Vector3(5.4, 0.6, 5.4), Vector3.ONE, Vector3(0.0, 18.0, 0.0), STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, pg1 + Vector3(-1.9, 0.0, -1.9), 20.0, STYLE, Color(1.0, 0.74, 0.34))
@@ -98,6 +100,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	]
 	for idx in range(bridge1.size()):
 		WorldHelper.add_folding_tile(self, bridge1[idx], Vector3(0.0, 52.0 - idx * 14.0, 0.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-10.0, 381.0, -24.0), Vector3(-25.0, 389.8, -6.5), 2.8, 5)
 
 	WorldHelper.add_sun_shard(self, "w3_s1", Vector3(-19.0, 389.0, -16.5))
 
@@ -105,6 +108,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_box_platform(self, PAGODA, ud1, Vector3(5.4, 0.6, 5.4), Vector3(0.9, 1.0, 0.9), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, ud1 + Vector3(-1.8, 0.0, -1.6), 95.0, STYLE, Color(1.0, 0.74, 0.34))
 	WorldHelper.add_updraft(self, ud1 + Vector3(0.5, 0.5, 4.5), 21.0, 3.2, Color(0.52, 0.96, 1.0), audit)
+	WorldHelper.add_solar_mote_arc(self, ud1 + Vector3(0.5, 2.5, 4.5), Vector3(-23.0, 412.2, 13.5), 4.6, 4)
 	WorldHelper.add_landmark(self, CRANE, ud1 + Vector3(-5.0, 12.0, 8.0), Vector3(0.95, 0.95, 0.95), Vector3(12.0, 15.0, 0.0), {})
 
 	# Checkpoint 2: Twilight Teahouse Eave (Y = 412m)
@@ -118,7 +122,9 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# =========================================================================
 	WorldHelper.add_folding_tile(self, Vector3(-16.5, 414.5, 20.5), Vector3(0.0, -48.0, 0.0), audit)
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(-9.0, 417.5, 25.5), 23.0, 2.4, Vector3(3.5, 0.0, 1.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-9.0, 418.5, 25.5), Vector3(1.5, 428.5, 27.5), 4.2, 4)
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(1.5, 427.5, 27.5), 23.0, 2.4, Vector3(3.5, 0.0, -1.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(1.5, 428.5, 27.5), Vector3(11.5, 438.2, 25.0), 4.2, 4)
 	var pg2 := Vector3(11.5, 437.5, 25.0)
 	WorldHelper.add_static_box_platform(self, PAGODA, pg2, Vector3(5.4, 0.6, 5.4), Vector3.ONE, Vector3(0.0, -60.0, 0.0), STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, pg2 + Vector3(1.9, 0.0, 1.8), -60.0, STYLE, Color(1.0, 0.74, 0.34))
@@ -132,10 +138,13 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	]
 	for idx in range(bridge2.size()):
 		WorldHelper.add_folding_tile(self, bridge2[idx], Vector3(0.0, -85.0 - idx * 14.0, 0.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(19.0, 441.2, 19.5), Vector3(23.5, 454.2, -12.0), 3.0, 5)
 	WorldHelper.add_sun_shard(self, "w3_s2", Vector3(26.5, 453.0, 4.5))
 
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(18.0, 456.5, -19.5), 24.0, 2.4, Vector3(-3.0, 0.0, -2.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(18.0, 457.5, -19.5), Vector3(9.5, 468.0, -25.0), 4.4, 4)
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(9.5, 467.0, -25.0), 22.0, 2.4, Vector3(-3.5, 0.0, 0.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(9.5, 468.0, -25.0), Vector3(-1.0, 476.8, -26.5), 4.0, 4)
 
 	# Checkpoint 3: Crane-Nest Pagoda (Y = 476m)
 	var cp3 := Vector3(-1.0, 476.0, -26.5)
@@ -149,15 +158,18 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_folding_tile(self, Vector3(-9.5, 479.0, -24.5), Vector3(0.0, 72.0, 0.0), audit)
 	WorldHelper.add_folding_tile(self, Vector3(-17.0, 482.2, -20.0), Vector3(0.0, 52.0, 0.0), audit)
 	WorldHelper.add_updraft(self, Vector3(-23.0, 483.0, -13.0), 22.0, 3.4, Color(0.55, 0.95, 1.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-23.0, 485.0, -13.0), Vector3(-26.5, 504.2, -4.5), 4.6, 4)
 	var pg3 := Vector3(-26.5, 503.5, -4.5)
 	WorldHelper.add_static_box_platform(self, PAGODA, pg3, Vector3(5.4, 0.6, 5.4), Vector3.ONE, Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, pg3 + Vector3(-1.9, 0.0, -1.8), 90.0, STYLE, Color(1.0, 0.74, 0.34))
 
 	WorldHelper.add_bounce_pad(self, PARASOL, Vector3(-25.5, 506.5, 5.5), 23.0, 2.4, Vector3(1.5, 0.0, 3.5), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-25.5, 507.5, 5.5), Vector3(-21.0, 516.8, 15.0), 4.2, 4)
 	WorldHelper.add_folding_tile(self, Vector3(-21.0, 516.0, 15.0), Vector3(0.0, -35.0, 0.0), audit)
 	WorldHelper.add_folding_tile(self, Vector3(-14.5, 519.2, 21.5), Vector3(0.0, -50.0, 0.0), audit)
 	WorldHelper.add_sun_shard(self, "w3_s3", Vector3(-14.5, 524.5, 21.5))
 	WorldHelper.add_updraft(self, Vector3(-6.5, 520.0, 25.5), 20.0, 3.3, Color(1.0, 0.80, 0.45), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-6.5, 522.0, 25.5), Vector3(3.5, 539.2, 26.5), 4.5, 4)
 
 	# World 3 -> World 4 Mirror Gallery Ascension Gate (Y = 539m)
 	var gate_pos := Vector3(3.5, 538.5, 26.5)

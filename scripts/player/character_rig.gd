@@ -29,6 +29,7 @@ var _stride_phase: float = 0.0
 var _squash_vec: Vector3 = Vector3.ONE
 var _flip_angle: float = 0.0
 var _visual_yaw: float = 0.0
+var _solar_charged: bool = false
 
 # Dynamic 3D Flow Ribbon Trail
 var _ribbon_mesh_inst: MeshInstance3D
@@ -127,21 +128,42 @@ func load_character(char_id: String) -> void:
 	_ant_r = null
 
 	var info: Dictionary = GameState.CHARACTERS[char_id]
-	var scene_res = load(info["model"])
-	if scene_res:
-		_model_root = scene_res.instantiate()
+	var scene_res: Variant = load(str(info["model"]))
+	if scene_res is PackedScene:
+		_model_root = (scene_res as PackedScene).instantiate()
 		WorldHelper.apply_plush_character_materials(_model_root)
 		add_child(_model_root)
 		_cache_rig_nodes(_model_root)
 
-	if _ribbon_mat:
-		_ribbon_mat.set_shader_parameter("core_color", info["trail_core"])
-		_ribbon_mat.set_shader_parameter("edge_color", info["trail_edge"])
-	if _burst_mat:
-		_burst_mat.albedo_color = info["trail_core"]
-		_burst_mat.emission = info["trail_core"]
+	_apply_trail_colors()
 	_trail_points.clear()
 	trigger_squash(Vector3(1.22, 0.80, 1.22))
+
+
+func _apply_trail_colors() -> void:
+	if not GameState.CHARACTERS.has(_char_id):
+		return
+	var info: Dictionary = GameState.CHARACTERS[_char_id]
+	var core_col: Color = info["trail_core"]
+	var edge_col: Color = info["trail_edge"]
+	if _solar_charged:
+		core_col = core_col.lerp(Color(1.0, 0.96, 0.56), 0.72)
+		edge_col = edge_col.lerp(Color(1.0, 0.64, 0.14), 0.72)
+	if _ribbon_mat:
+		_ribbon_mat.set_shader_parameter("core_color", core_col)
+		_ribbon_mat.set_shader_parameter("edge_color", edge_col)
+	if _burst_mat:
+		_burst_mat.albedo_color = core_col
+		_burst_mat.emission = core_col
+
+
+func set_solar_charge_glow(enabled: bool) -> void:
+	if _solar_charged == enabled:
+		return
+	_solar_charged = enabled
+	_apply_trail_colors()
+	if enabled:
+		emit_burst(Vector3(0.0, 0.65, 0.0))
 
 
 func _cache_rig_nodes(root: Node) -> void:
@@ -219,6 +241,10 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 	if state_name == "SLIDE":
 		body_pitch = 0.65
 		bob_y = -0.22
+	elif state_name == "SKY_DIVE":
+		body_pitch = -1.05
+	elif state_name == "FLUTTER":
+		body_pitch = 0.06
 	elif state_name == "DASH" or state_name == "TETHER_ZIP":
 		body_pitch = -0.45
 	elif state_name == "WALL_RUN":
@@ -244,6 +270,7 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 	# Expressive Limbs
 	var leg_swing := 0.0
 	var arm_swing := 0.0
+	var arm_spread := 0.14 + (0.45 if not is_floor else 0.0)
 	if is_floor and spd > 0.45 and state_name != "SLIDE":
 		leg_swing = sin(_stride_phase) * 0.78 * clampf(spd_norm, 0.25, 1.0)
 		arm_swing = -sin(_stride_phase) * 0.62 * clampf(spd_norm, 0.25, 1.0)
@@ -254,27 +281,38 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 	elif state_name == "SLIDE":
 		leg_swing = 0.65
 		arm_swing = -0.75
+	elif state_name == "SKY_DIVE":
+		leg_swing = 0.55
+		arm_swing = -1.35
+		arm_spread = 0.22
+	elif state_name == "FLUTTER":
+		leg_swing = 0.24
+		arm_swing = -0.15
+		arm_spread = 0.72
 	elif not is_floor:
 		leg_swing = 0.36
 		arm_swing = -0.45
 
 	if _leg_l:
-		_leg_l.rotation.x = lerpf(_leg_l.rotation.x, leg_swing, clampf(delta * 16.0, 0.0, 1.0))
+		var target_leg_l := leg_swing if state_name != "SKY_DIVE" else 0.55
+		_leg_l.rotation.x = lerpf(_leg_l.rotation.x, target_leg_l, clampf(delta * 16.0, 0.0, 1.0))
 	if _leg_r:
-		_leg_r.rotation.x = lerpf(_leg_r.rotation.x, -leg_swing, clampf(delta * 16.0, 0.0, 1.0))
+		var target_leg_r := leg_swing if state_name == "SKY_DIVE" else -leg_swing
+		_leg_r.rotation.x = lerpf(_leg_r.rotation.x, target_leg_r, clampf(delta * 16.0, 0.0, 1.0))
 	if _arm_l:
 		_arm_l.rotation.x = lerpf(_arm_l.rotation.x, arm_swing, clampf(delta * 14.0, 0.0, 1.0))
-		_arm_l.rotation.z = lerpf(_arm_l.rotation.z, 0.14 + (0.45 if not is_floor else 0.0), clampf(delta * 10.0, 0.0, 1.0))
+		_arm_l.rotation.z = lerpf(_arm_l.rotation.z, arm_spread, clampf(delta * 10.0, 0.0, 1.0))
 	if _arm_r:
-		_arm_r.rotation.x = lerpf(_arm_r.rotation.x, -arm_swing, clampf(delta * 14.0, 0.0, 1.0))
-		_arm_r.rotation.z = lerpf(_arm_r.rotation.z, -0.14 - (0.45 if not is_floor else 0.0), clampf(delta * 10.0, 0.0, 1.0))
+		var target_arm_r := arm_swing if state_name == "SKY_DIVE" else -arm_swing
+		_arm_r.rotation.x = lerpf(_arm_r.rotation.x, target_arm_r, clampf(delta * 14.0, 0.0, 1.0))
+		_arm_r.rotation.z = lerpf(_arm_r.rotation.z, -arm_spread, clampf(delta * 10.0, 0.0, 1.0))
 
 	# Character-Specific Alive Secondary Motion!
 	# 1. Pip's fluttering 4-segment scarf & dangling brass lantern
 	for idx in range(_scarf_segs.size()):
 		var seg := _scarf_segs[idx]
-		var wave_spd := 4.5 + spd * 1.15
-		var amp := 0.08 + spd_norm * 0.22
+		var wave_spd := 4.5 + spd * 1.15 + (6.0 if state_name == "SKY_DIVE" else 0.0)
+		var amp := 0.08 + spd_norm * 0.22 + (0.14 if state_name == "SKY_DIVE" else 0.0)
 		seg.rotation.x = -0.12 - spd_norm * 0.18 + sin(_anim_time * wave_spd - idx * 0.9) * amp
 		seg.rotation.y = cos(_anim_time * (wave_spd * 0.7) - idx * 1.1) * amp * 0.75
 	if _lantern:
@@ -282,7 +320,7 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 		_lantern.rotation.z = 0.0
 
 	# 2. Koko's swept-back hinged ears, wagging tail & spinning wind-up key
-	var ear_back := -0.18 - spd_norm * 0.52 - (0.35 if state_name == "DASH" else 0.0)
+	var ear_back := -0.18 - spd_norm * 0.52 - (0.35 if state_name in ["DASH", "SKY_DIVE"] else 0.0)
 	if _ear_l:
 		_ear_l.rotation.x = lerpf(_ear_l.rotation.x, ear_back + sin(_anim_time * 5.0) * 0.05, clampf(delta * 12.0, 0.0, 1.0))
 	if _ear_r:
@@ -292,17 +330,27 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 		tseg.rotation.y = sin(_anim_time * (5.0 + spd * 0.6) - idx * 0.8) * (0.18 + spd_norm * 0.15)
 		tseg.rotation.x = 0.12 - spd_norm * 0.14
 	if _windup_key:
-		_windup_key.rotation.z += delta * (1.8 + spd * 0.95 + flow * 6.0)
+		_windup_key.rotation.z += delta * (1.8 + spd * 0.95 + flow * 6.0 + (4.5 if _solar_charged else 0.0))
 
 	# 3. Vesper's articulated origami wings & feathered antennae!
 	var wing_spread := 0.22 if is_floor else 0.78
-	if state_name == "DASH" or state_name == "TETHER_ZIP":
+	var flap_freq := 4.0 if is_floor else 14.0
+	var flap_amp := 0.08 if is_floor else 0.28
+	if state_name == "FLUTTER":
+		wing_spread = 1.25
+		flap_freq = 26.0
+		flap_amp = 0.36
+	elif state_name == "DASH" or state_name == "TETHER_ZIP":
 		wing_spread = 1.05
-	var flap := sin(_anim_time * (4.0 if is_floor else 14.0)) * (0.08 if is_floor else 0.28)
+	elif state_name == "SKY_DIVE":
+		wing_spread = 0.34
+		flap_freq = 18.0
+		flap_amp = 0.12
+	var flap := sin(_anim_time * flap_freq) * flap_amp
 	if _wing_l:
-		_wing_l.rotation.y = lerpf(_wing_l.rotation.y, -wing_spread + flap, clampf(delta * 12.0, 0.0, 1.0))
+		_wing_l.rotation.y = lerpf(_wing_l.rotation.y, -wing_spread + flap, clampf(delta * 14.0, 0.0, 1.0))
 	if _wing_r:
-		_wing_r.rotation.y = lerpf(_wing_r.rotation.y, wing_spread - flap, clampf(delta * 12.0, 0.0, 1.0))
+		_wing_r.rotation.y = lerpf(_wing_r.rotation.y, wing_spread - flap, clampf(delta * 14.0, 0.0, 1.0))
 	if _ant_l:
 		_ant_l.rotation.x = -0.35 - spd_norm * 0.35 + sin(_anim_time * 6.0) * 0.08
 	if _ant_r:
@@ -312,7 +360,7 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 
 
 func _update_ribbon_trail(spd: float, flow: float, state_name: String, delta: float) -> void:
-	var active := spd > 7.5 or flow > 0.22 or state_name in ["DASH", "WALL_RUN", "TETHER_ZIP", "REWIND"]
+	var active := spd > 7.5 or flow > 0.22 or _solar_charged or state_name in ["DASH", "WALL_RUN", "TETHER_ZIP", "REWIND", "SKY_DIVE", "FLUTTER"]
 	_trail_timer += delta
 	if _trail_timer >= 0.016:
 		_trail_timer = 0.0
@@ -329,8 +377,14 @@ func _update_ribbon_trail(spd: float, flow: float, state_name: String, delta: fl
 
 	var cam := get_viewport().get_camera_3d()
 	var cam_pos := cam.global_position if cam else global_position + Vector3(0.0, 3.0, 5.0)
-	var base_w := 0.16 + flow * 0.24 + (0.20 if state_name in ["DASH", "TETHER_ZIP", "REWIND"] else 0.0)
-	_ribbon_mat.set_shader_parameter("intensity", 1.1 + flow * 1.4 + (1.2 if state_name == "DASH" else 0.0))
+	var extra_w := 0.20 if state_name in ["DASH", "TETHER_ZIP", "REWIND"] else (0.26 if state_name == "SKY_DIVE" else 0.0)
+	if _solar_charged:
+		extra_w += 0.14
+	var base_w := 0.16 + flow * 0.24 + extra_w
+	var extra_i := 1.2 if state_name == "DASH" else (1.55 if state_name == "SKY_DIVE" else 0.0)
+	if _solar_charged:
+		extra_i += 1.15
+	_ribbon_mat.set_shader_parameter("intensity", 1.1 + flow * 1.4 + extra_i)
 
 	_ribbon_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	var cnt := _trail_points.size()

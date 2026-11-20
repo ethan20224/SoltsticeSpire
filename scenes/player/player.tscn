@@ -50,12 +50,12 @@ collision_mask = 1
 
 [node name="WallRayL" type="RayCast3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.82, 0)
-target_position = Vector3(-0.92, 0, 0)
+target_position = Vector3(-1.22, 0, 0)
 collision_mask = 1
 
 [node name="WallRayR" type="RayCast3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.82, 0)
-target_position = Vector3(0.92, 0, 0)
+target_position = Vector3(1.22, 0, 0)
 collision_mask = 1
 
 [node name="MantleLowRay" type="RayCast3D" parent="."]

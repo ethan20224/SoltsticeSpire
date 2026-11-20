@@ -7,6 +7,7 @@ signal mode_changed(use_phone: bool)
 signal connection_changed(connected: bool, client_count: int, device_label: String)
 signal url_changed(active_url: String, is_tunnel: bool)
 signal remote_begin_ascent()
+signal remote_continue_cutscene()
 signal remote_toggle_pause()
 signal remote_resume()
 signal remote_restart_climb()
@@ -107,6 +108,10 @@ func is_sprint_active() -> bool:
 
 func is_jump_held() -> bool:
 	return _jump_held
+
+
+func is_slide_held() -> bool:
+	return _slide_held
 
 
 func consume_jump_just_pressed() -> bool:
@@ -609,7 +614,12 @@ func _handle_json_payload(json_str: String, peer: StreamPeerTCP) -> void:
 		var new_rw := int(msg.get("rw", 0)) != 0
 
 		var ev := str(msg.get("ev", ""))
-		if (new_jp and not _jump_held) or ev == "jump_down":
+		var jp_edge := (new_jp and not _jump_held) or ev == "jump_down"
+		var cs_raw: Variant = GameState.get("is_cutscene")
+		var in_cutscene: bool = (cs_raw != null and bool(cs_raw))
+		if in_cutscene and jp_edge:
+			remote_continue_cutscene.emit()
+		elif jp_edge:
 			_jump_just_pressed_latch = true
 		if (new_da and not _dash_held) or ev == "dash_down":
 			_dash_just_pressed_latch = true
@@ -629,11 +639,16 @@ func _handle_json_payload(json_str: String, peer: StreamPeerTCP) -> void:
 		var arg = msg.get("arg", null)
 		match cmd:
 			"select_character":
-				var cid := str(arg)
-				if GameState.CHARACTERS.has(cid):
-					GameState.set_character(cid)
-					AudioDirector.play_sfx("ui_click", -2.0, 1.1)
-					_broadcast_telemetry()
+				var cs_raw: Variant = GameState.get("is_cutscene")
+				var in_cutscene: bool = (cs_raw != null and bool(cs_raw))
+				if not GameState.is_playing and not in_cutscene:
+					var cid := str(arg)
+					if GameState.CHARACTERS.has(cid):
+						GameState.set_character(cid)
+						AudioDirector.play_sfx("ui_click", -2.0, 1.1)
+						_broadcast_telemetry()
+			"continue_cutscene":
+				remote_continue_cutscene.emit()
 			"begin_ascent":
 				remote_begin_ascent.emit()
 			"toggle_pause":
@@ -650,8 +665,15 @@ func _broadcast_telemetry() -> void:
 	if _ws_clients.is_empty():
 		return
 	var mode_str := "title"
-	if GameState.is_playing:
+	var cs_raw: Variant = GameState.get("is_cutscene")
+	if cs_raw != null and bool(cs_raw):
+		mode_str = "cutscene"
+	elif GameState.is_playing:
 		mode_str = "paused" if GameState.is_paused else "playing"
+	var rw_rem_raw: Variant = GameState.get("rewind_window_remaining")
+	var rw_rem: float = float(rw_rem_raw) if rw_rem_raw != null else 0.0
+	var rw_on_raw: Variant = GameState.get("rewind_window_active")
+	var rw_on: bool = bool(rw_on_raw) if rw_on_raw != null else false
 	var w_idx := clampi(GameState.current_world_idx, 0, GameState.WORLDS.size() - 1)
 	var w_name: String = GameState.WORLDS[w_idx]["name"]
 	var payload := {
@@ -666,6 +688,8 @@ func _broadcast_telemetry() -> void:
 		"falls": GameState.total_falls,
 		"flow": snappedf(GameState.current_flow, 0.01),
 		"streak": GameState.current_streak,
-		"orb": _orb_locked
+		"orb": _orb_locked,
+		"rewind_rem": snappedf(rw_rem, 0.1),
+		"rewind_on": rw_on
 	}
 	_broadcast_ws_text(JSON.stringify(payload))

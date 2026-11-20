@@ -76,6 +76,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_dressing_cluster(self, CLUSTER, p1_in + Vector3(1.6, 0.0, 1.5), -45.0, STYLE, Color(1.0, 0.76, 0.38))
 	var p1_out := Vector3(26.0, 558.0, 0.5)
 	WorldHelper.add_portal_pair(self, p1_in + Vector3(0.5, 0.0, -0.5), -32.0, p1_out, -8.0, 17.5, audit)
+	WorldHelper.add_solar_mote_arc(self, p1_out + Vector3(0.0, 1.5, -1.5), Vector3(26.0, 558.2, -10.5), 2.2, 3)
 
 	var balc1 := Vector3(26.0, 557.5, -10.5)
 	WorldHelper.add_static_box_platform(self, MARBLE, balc1, Vector3(4.6, 0.5, 4.6), Vector3(1.2, 1.0, 1.2), Vector3.ZERO, STYLE, audit)
@@ -88,7 +89,8 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 		Vector3(-2.5, 569.5, -27.0),
 	]
 	for idx in range(shatter1.size()):
-		WorldHelper.add_crumbling_tile(self, SHATTER, shatter1[idx], 0.68, true, Vector3(0.0, idx * 15.0, 0.0), audit)
+		WorldHelper.add_crumbling_tile(self, SHATTER, shatter1[idx], 0.86, true, Vector3(0.0, idx * 15.0, 0.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(21.5, 561.2, -18.0), Vector3(-2.5, 570.2, -27.0), 3.0, 5)
 	WorldHelper.add_sun_shard(self, "w4_s1", Vector3(6.0, 571.5, -26.5))
 
 	var balc2 := Vector3(-11.0, 572.5, -24.5)
@@ -99,6 +101,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_box_platform(self, MARBLE, p2_in, Vector3(4.6, 0.5, 4.6), Vector3.ONE, Vector3.ZERO, STYLE, audit)
 	var p2_out := Vector3(-26.5, 594.0, 5.0)
 	WorldHelper.add_portal_pair(self, p2_in, 175.0, p2_out, 162.0, 17.0, audit)
+	WorldHelper.add_solar_mote_arc(self, p2_out + Vector3(1.0, 1.5, 1.5), Vector3(-22.0, 594.2, 16.0), 2.2, 3)
 
 	# Checkpoint 2: Escher Hallway Terrace (Y = 594m)
 	var cp2 := Vector3(-22.0, 593.5, 16.0)
@@ -109,9 +112,10 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# =========================================================================
 	# ACT 11 (594m -> 662m): Twin Mirror Corridor & Shatter-Portal Combo
 	# =========================================================================
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-14.5, 596.5, 22.5), 0.65, true, Vector3.ZERO, audit)
-	WorldHelper.add_wall_run(self, MIRROR, Vector3(-5.0, 600.5, 28.5), Vector3(0.0, -10.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
-	WorldHelper.add_wall_run(self, MIRROR, Vector3(5.5, 604.5, 24.0), Vector3(0.0, 16.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-14.5, 596.5, 22.5), 0.84, true, Vector3.ZERO, audit)
+	WorldHelper.add_wall_run(self, MIRROR, Vector3(-5.0, 599.2, 28.5), Vector3(0.0, -10.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
+	WorldHelper.add_wall_run(self, MIRROR, Vector3(5.5, 602.8, 24.0), Vector3(0.0, 16.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-14.5, 597.5, 22.5), Vector3(15.0, 607.2, 23.0), 3.2, 5)
 	WorldHelper.add_sun_shard(self, "w4_s2", Vector3(0.5, 605.5, 26.5))
 
 	var p3_in := Vector3(15.0, 606.5, 23.0)
@@ -119,6 +123,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_dressing_cluster(self, CLUSTER, p3_in + Vector3(1.6, 0.0, 1.5), -110.0, STYLE, Color(1.0, 0.76, 0.38))
 	var p3_out := Vector3(26.0, 626.0, 8.0)
 	WorldHelper.add_portal_pair(self, p3_in, -45.0, p3_out, -8.0, 17.5, audit)
+	WorldHelper.add_solar_mote_arc(self, p3_out + Vector3(0.0, 1.5, -1.5), Vector3(26.5, 626.2, -3.5), 2.2, 3)
 
 	WorldHelper.add_static_box_platform(self, MARBLE, Vector3(26.5, 625.5, -3.5), Vector3(4.6, 0.5, 4.6), Vector3(1.15, 1.0, 1.15), Vector3.ZERO, STYLE, audit)
 
@@ -129,13 +134,15 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 		Vector3(2.5, 638.5, -26.5),
 	]
 	for idx in range(shatter2.size()):
-		WorldHelper.add_crumbling_tile(self, SHATTER, shatter2[idx], 0.62, true, Vector3(0.0, -25.0 - idx * 18.0, 0.0), audit)
+		WorldHelper.add_crumbling_tile(self, SHATTER, shatter2[idx], 0.82, true, Vector3(0.0, -25.0 - idx * 18.0, 0.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(24.0, 629.5, -12.0), Vector3(2.5, 639.2, -26.5), 3.0, 5)
 
 	var p4_in := Vector3(-6.5, 641.5, -26.0)
 	WorldHelper.add_static_box_platform(self, MARBLE, p4_in, Vector3(4.6, 0.5, 4.6), Vector3.ONE, Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, p4_in + Vector3(-1.5, 0.0, -1.6), 45.0, STYLE, Color(1.0, 0.76, 0.38))
 	var p4_out := Vector3(-21.0, 661.0, -16.0)
 	WorldHelper.add_portal_pair(self, p4_in, 75.0, p4_out, 138.0, 17.0, audit)
+	WorldHelper.add_solar_mote_arc(self, p4_out + Vector3(-1.0, 1.5, 1.5), Vector3(-26.5, 661.2, -6.0), 2.2, 3)
 
 	# Checkpoint 3: Prism Rotunda (Y = 661m)
 	var cp3 := Vector3(-26.5, 660.5, -6.0)
@@ -146,26 +153,30 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# =========================================================================
 	# ACT 12 (661m -> 730m): The Kaleidoscope Finale into the Aurora Night
 	# =========================================================================
-	WorldHelper.add_wall_run(self, MIRROR, Vector3(-29.0, 664.5, 4.0), Vector3(0.0, 82.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-23.5, 667.5, 13.5), 0.62, true, Vector3.ZERO, audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-16.5, 670.8, 20.5), 0.62, true, Vector3.ZERO, audit)
+	WorldHelper.add_wall_run(self, MIRROR, Vector3(-29.0, 663.2, 4.0), Vector3(0.0, 82.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-23.5, 667.5, 13.5), 0.82, true, Vector3.ZERO, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(-16.5, 670.8, 20.5), 0.82, true, Vector3.ZERO, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-23.5, 668.2, 13.5), Vector3(-8.5, 674.5, 25.0), 2.8, 4)
 
 	var p5_in := Vector3(-8.5, 673.8, 25.0)
 	WorldHelper.add_static_box_platform(self, MARBLE, p5_in, Vector3(4.6, 0.5, 4.6), Vector3.ONE, Vector3.ZERO, STYLE, audit)
 	var p5_out := Vector3(10.0, 696.0, 24.0)
 	WorldHelper.add_portal_pair(self, p5_in, -70.0, p5_out, -58.0, 17.5, audit)
+	WorldHelper.add_solar_mote_arc(self, p5_out + Vector3(1.5, 1.5, -1.0), Vector3(19.5, 696.2, 17.5), 2.2, 3)
 
 	var balc3 := Vector3(19.5, 695.5, 17.5)
 	WorldHelper.add_static_box_platform(self, MARBLE, balc3, Vector3(4.6, 0.5, 4.6), Vector3(1.15, 1.0, 1.15), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, balc3 + Vector3(1.7, 0.0, 1.5), -130.0, STYLE, Color(1.0, 0.76, 0.38))
 	WorldHelper.add_sun_shard(self, "w4_s3", Vector3(24.0, 703.5, 9.0))
 	WorldHelper.add_wall_run(self, MIRROR, Vector3(28.5, 700.0, 8.5), Vector3(0.0, -76.0, 0.0), Vector3(9.0, 4.4, 0.9), false, 0, audit)
-	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(26.5, 703.5, -1.5), 0.62, true, Vector3.ZERO, audit)
+	WorldHelper.add_crumbling_tile(self, SHATTER, Vector3(26.5, 703.5, -1.5), 0.82, true, Vector3.ZERO, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(26.5, 704.2, -1.5), Vector3(23.5, 707.2, -10.5), 2.4, 3)
 
 	var p6_in := Vector3(23.5, 706.5, -10.5)
 	WorldHelper.add_static_box_platform(self, MARBLE, p6_in, Vector3(4.6, 0.5, 4.6), Vector3.ONE, Vector3.ZERO, STYLE, audit)
 	var p6_out := Vector3(10.5, 728.5, -24.0)
 	WorldHelper.add_portal_pair(self, p6_in, 25.0, p6_out, 55.0, 16.5, audit)
+	WorldHelper.add_solar_mote_arc(self, p6_out + Vector3(-1.5, 1.5, -0.5), Vector3(0.0, 728.8, -27.0), 2.2, 3)
 
 	# World 4 -> World 5 Cloud-Whale Library Ascension Gate (Y = 728m)
 	var gate_pos := Vector3(0.0, 728.0, -27.0)

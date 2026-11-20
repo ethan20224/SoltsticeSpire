@@ -13,6 +13,25 @@ var _focus_world: int = -1
 var _showing_all_summit: bool = false
 var _diorama_culled: bool = false
 var _last_low_w1: bool = true
+var _last_fast_fall: bool = false
+var _player_ref: Node3D = null
+
+
+func _process(_delta: float) -> void:
+	if not is_instance_valid(_player_ref):
+		var found := get_tree().get_first_node_in_group("player")
+		if found is Node3D:
+			_player_ref = found as Node3D
+	if is_instance_valid(_player_ref):
+		if GameState.is_playing:
+			RenderingServer.global_shader_parameter_set("player_world_pos", _player_ref.global_position)
+		else:
+			RenderingServer.global_shader_parameter_set("player_world_pos", Vector3(99999.0, 99999.0, 99999.0))
+		if not _diorama_culled and not _showing_all_summit and _player_ref is CharacterBody3D:
+			var vel_y: float = (_player_ref as CharacterBody3D).velocity.y
+			if vel_y < -10.0 and not _last_fast_fall and not _world_nodes.is_empty():
+				var py: float = _player_ref.global_position.y
+				set_focus_world(world_index_for_altitude(py), false, py, vel_y)
 
 
 func build_all_worlds() -> void:
@@ -94,19 +113,25 @@ func set_diorama_cull(active: bool, origin: Vector3 = Vector3(0.0, 0.05, 25.5)) 
 		set_focus_world(0, false, 0.0)
 
 
-func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: float = -1.0) -> void:
+func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: float = -1.0, fall_vel_y: float = 0.0) -> void:
 	## Streams active worlds cleanly: keeps [idx-1, idx+1] visible during normal play
 	## (and hides W2 while at the bottom half of W1 so W1 opening hits 60 FPS),
+	## streams [idx-2, idx+1] when falling fast (vel_y < -10.0) to prevent invisible lower realms,
 	## or shows all 6 realms for the Summit Look-Down vista with 90m detail culling on distant worlds!
 	if _diorama_culled:
 		return
 	idx = clampi(idx, 0, _world_nodes.size() - 1)
-	var low_w1: bool = (idx == 0 and not show_all_for_summit and player_y < 92.0)
-	if idx == _focus_world and show_all_for_summit == _showing_all_summit and low_w1 == _last_low_w1:
+	var eff_vel_y: float = fall_vel_y
+	if eff_vel_y == 0.0 and is_instance_valid(_player_ref) and _player_ref is CharacterBody3D:
+		eff_vel_y = (_player_ref as CharacterBody3D).velocity.y
+	var fast_fall: bool = (not show_all_for_summit) and (eff_vel_y < -10.0)
+	var low_w1: bool = (idx == 0 and not show_all_for_summit and not fast_fall and player_y < 92.0)
+	if idx == _focus_world and show_all_for_summit == _showing_all_summit and low_w1 == _last_low_w1 and fast_fall == _last_fast_fall:
 		return
 	_focus_world = idx
 	_showing_all_summit = show_all_for_summit
 	_last_low_w1 = low_w1
+	_last_fast_fall = fast_fall
 
 	for i in range(_world_nodes.size()):
 		var wn: Node3D = _world_nodes[i]
@@ -117,7 +142,13 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 			else:
 				WorldHelper.set_detail_cull_range(wn, 0.0)
 		else:
-			var in_window: bool = (i == 0) if low_w1 else (absi(i - idx) <= 1)
+			var in_window: bool
+			if fast_fall:
+				in_window = (i >= idx - 2 and i <= idx + 1)
+			elif low_w1:
+				in_window = (i == 0)
+			else:
+				in_window = (absi(i - idx) <= 1)
 			wn.visible = in_window
 			if in_window:
 				WorldHelper.set_detail_cull_range(wn, 0.0 if i == idx else 130.0)
@@ -129,6 +160,8 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 		var cg: Node3D = _cloud_groups[i]
 		if show_all_for_summit:
 			cg.visible = true
+		elif fast_fall:
+			cg.visible = (i >= idx - 2 and i <= idx + 1)
 		elif low_w1:
 			cg.visible = (i == 0)
 		else:
@@ -136,7 +169,9 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 
 	for i in range(_firefly_nodes.size()):
 		var ff: GPUParticles3D = _firefly_nodes[i]
-		if low_w1:
+		if fast_fall:
+			ff.visible = (i >= idx - 2 and i <= idx + 1)
+		elif low_w1:
 			ff.visible = (i == 0)
 		else:
 			ff.visible = (i == idx) or (absi(i - idx) <= 1 and not show_all_for_summit)
@@ -162,25 +197,34 @@ func _exit_tree() -> void:
 
 func _spawn_cloud_decks() -> void:
 	var cloud_sh: Shader = load("res://assets/shaders/volumetric_cloud_sea.gdshader")
-	var tiers := [
-		{"y": -28.0, "size": 1200.0, "op": 0.96, "crest": Color(1.0, 0.97, 0.92), "val": Color(0.65, 0.78, 0.90)},
+	var tiers: Array[Dictionary] = [
+		{
+			"y": -18.0, "size": 1500.0, "sub": 60, "op": 0.96,
+			"crest": Color(1.0, 0.97, 0.90), "val": Color(0.56, 0.70, 0.90),
+			"glow": Color(1.0, 0.88, 0.62), "billow": 8.2, "scale": 0.0085,
+		},
 	]
 	for idx in range(tiers.size()):
 		var t: Dictionary = tiers[idx]
 		var mi := MeshInstance3D.new()
 		mi.name = "CloudDeck_%d" % idx
 		var pm := PlaneMesh.new()
-		pm.size = Vector2(t["size"], t["size"])
-		pm.subdivide_width = 40
-		pm.subdivide_depth = 40
+		var sz: float = float(t["size"])
+		var sub: int = int(t["sub"])
+		pm.size = Vector2(sz, sz)
+		pm.subdivide_width = sub
+		pm.subdivide_depth = sub
 		mi.mesh = pm
-		mi.position = Vector3(0.0, t["y"], 0.0)
+		mi.position = Vector3(0.0, float(t["y"]), 0.0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var mat := ShaderMaterial.new()
 		mat.shader = cloud_sh
 		mat.set_shader_parameter("crest_color", t["crest"])
 		mat.set_shader_parameter("valley_color", t["val"])
-		mat.set_shader_parameter("opacity", t["op"])
+		mat.set_shader_parameter("horizon_glow_color", t["glow"])
+		mat.set_shader_parameter("opacity", float(t["op"]))
+		mat.set_shader_parameter("billow_height", float(t["billow"]))
+		mat.set_shader_parameter("cloud_scale", float(t["scale"]))
 		mi.material_override = mat
 		add_child(mi)
 

@@ -6,10 +6,10 @@ class_name ReachabilityAudit
 
 # Conservative verified reach envelopes with safety margin:
 const MAX_STD_HORIZ := 16.5        # Sprint + Double-Jump + Air-Dash edge-to-edge clearance
-const MAX_STD_UP := 5.2            # Double-Jump + Ledge-Mantle max vertical step
+const MAX_STD_UP := 5.8            # Jump (13.0) + Double-Jump (11.2) + Ledge-Mantle max vertical step
 const MAX_BOUNCE_HORIZ := 17.0
 const MAX_WALL_HORIZ := 18.0
-const MAX_TETHER_DIST := 22.0      # Exact tether lock-on radius in PlayerController
+const MAX_TETHER_DIST := 25.0      # Exact tether lock-on radius in PlayerController
 
 
 static func run_audit(chain: Array) -> Dictionary:
@@ -19,15 +19,16 @@ static func run_audit(chain: Array) -> Dictionary:
 
 	# Collect gravity bubble zones so platforms nestled inside low-gravity bubbles are evaluated with 0.42x gravity!
 	var bubbles: Array[Dictionary] = []
-	for item in chain:
-		if item.get("kind", "") == "gravity_bubble":
-			bubbles.append({"pos": item["pos"], "r": item.get("radius", 9.0)})
+	for item_v: Variant in chain:
+		var item: Dictionary = item_v as Dictionary
+		if str(item.get("kind", "")) == "gravity_bubble":
+			bubbles.append({"pos": item["pos"], "r": float(item.get("radius", 9.0))})
 
 	for i in range(chain.size() - 1):
-		var a: Dictionary = chain[i]
-		var b: Dictionary = chain[i + 1]
-		var ka: String = a.get("kind", "platform")
-		var kb: String = b.get("kind", "platform")
+		var a: Dictionary = chain[i] as Dictionary
+		var b: Dictionary = chain[i + 1] as Dictionary
+		var ka: String = str(a.get("kind", "platform"))
+		var kb: String = str(b.get("kind", "platform"))
 
 		# Skip checkpoint node markers co-located on their checkpoint pad
 		if ka == "checkpoint" or kb == "checkpoint":
@@ -40,8 +41,8 @@ static func run_audit(chain: Array) -> Dictionary:
 		total_links += 1
 		var pa: Vector3 = a["pos"]
 		var pb: Vector3 = b["pos"]
-		var ra: float = a.get("radius", 1.8)
-		var rb: float = b.get("radius", 1.8)
+		var ra: float = float(a.get("radius", 1.8))
+		var rb: float = float(b.get("radius", 1.8))
 
 		var horiz_center := Vector2(pb.x - pa.x, pb.z - pa.z).length()
 		var edge_gap := maxf(0.0, horiz_center - ra - rb)
@@ -49,7 +50,9 @@ static func run_audit(chain: Array) -> Dictionary:
 
 		var in_low_g := false
 		for bb in bubbles:
-			if pa.distance_to(bb["pos"]) <= bb["r"] + 3.5 or pb.distance_to(bb["pos"]) <= bb["r"] + 3.5:
+			var bpos: Vector3 = bb["pos"]
+			var brad: float = float(bb["r"])
+			if pa.distance_to(bpos) <= brad + 3.5 or pb.distance_to(bpos) <= brad + 3.5:
 				in_low_g = true
 				break
 
@@ -58,7 +61,7 @@ static func run_audit(chain: Array) -> Dictionary:
 
 		if ka == "bounce":
 			max_h = MAX_BOUNCE_HORIZ
-			max_y = a.get("boost_y", 8.5) + (8.0 if in_low_g else 4.8)
+			max_y = float(a.get("boost_y", 8.5)) + (8.0 if in_low_g else 4.8)
 		elif ka == "updraft_out":
 			max_h = 16.0
 			max_y = 6.5

@@ -11,8 +11,13 @@ extends Node3D
 
 var _hud: GameHUD
 var _char_select: CharacterSelectUI
+var _guide_settings: GuideSettingsPanelUI
 var _pause_menu: PauseMenuUI
 var _summit_ui: SummitVictoryUI
+var _loading_screen: LoadingScreenUI
+var _opening_cutscene: OpeningCutscene
+var _high_water_flag: HighWaterFlag
+var _ghost_runner: GhostRunner
 var _diorama_models: Dictionary = {}
 var _diorama_time: float = 0.0
 var _gauntlet_mode: bool = false
@@ -29,9 +34,21 @@ func _ready() -> void:
 	# Spawn live 3D Character Select Diorama standing right on World 1's Sunlit Terrace!
 	_build_character_diorama()
 
-	# Create UI Layer
+	# Spawn High-Water Flag & Personal-Best Ghost Runner
+	_high_water_flag = HighWaterFlag.new()
+	_high_water_flag.name = "HighWaterFlag"
+	add_child(_high_water_flag)
+	player.high_water_planted.connect(_high_water_flag.plant_at)
+	player.high_water_passed.connect(func(_alt_m: float): _high_water_flag.celebrate_surpassed())
+
+	_ghost_runner = GhostRunner.new()
+	_ghost_runner.name = "GhostRunner"
+	add_child(_ghost_runner)
+
+	# Create UI Layer (layer 10 sits cleanly over OpeningCutscene layer 8)
 	var canvas := CanvasLayer.new()
 	canvas.name = "UILayer"
+	canvas.layer = 10
 	add_child(canvas)
 
 	_hud = GameHUD.new()
@@ -41,14 +58,20 @@ func _ready() -> void:
 
 	_char_select = CharacterSelectUI.new()
 	_char_select.character_highlighted.connect(_on_diorama_highlight)
-	_char_select.ascent_started.connect(_start_gameplay)
+	_char_select.ascent_started.connect(func(): _start_gameplay(0))
+	_char_select.guide_settings_requested.connect(_open_guide_settings)
+	_char_select.visible = false
 	canvas.add_child(_char_select)
+
+	_guide_settings = GuideSettingsPanelUI.new()
+	_guide_settings.closed.connect(_on_guide_settings_closed)
+	_guide_settings.world_launch_requested.connect(_on_guide_world_launch)
+	canvas.add_child(_guide_settings)
 
 	_pause_menu = PauseMenuUI.new()
 	_pause_menu.resume_requested.connect(_resume_from_pause)
 	_pause_menu.world_teleport_requested.connect(_teleport_to_world)
 	_pause_menu.restart_requested.connect(_restart_full_climb)
-	_pause_menu.title_requested.connect(_return_to_diorama)
 	canvas.add_child(_pause_menu)
 
 	_summit_ui = SummitVictoryUI.new()
@@ -58,6 +81,15 @@ func _ready() -> void:
 	_summit_ui.climb_again_requested.connect(_restart_full_climb)
 	canvas.add_child(_summit_ui)
 
+	_loading_screen = LoadingScreenUI.new()
+	_loading_screen.loading_finished.connect(_start_opening_cutscene)
+	canvas.add_child(_loading_screen)
+
+	_opening_cutscene = OpeningCutscene.new()
+	_opening_cutscene.name = "OpeningCutscene"
+	_opening_cutscene.cutscene_finished.connect(_on_cutscene_finished)
+	add_child(_opening_cutscene)
+
 	GameState.summit_reached.connect(_on_summit_reached)
 	GameState.shard_collected.connect(func(_cur: int, _tot: int): PhoneController.send_haptic("shard"))
 	GameState.checkpoint_updated.connect(func(_id: String, _w: int, _p: Vector3): PhoneController.send_haptic("shard"))
@@ -66,6 +98,10 @@ func _ready() -> void:
 			_on_diorama_highlight(cid)
 	)
 
+	PhoneController.remote_continue_cutscene.connect(func():
+		if GameState.is_cutscene:
+			_opening_cutscene.request_continue()
+	)
 	PhoneController.remote_toggle_pause.connect(_toggle_pause)
 	PhoneController.remote_resume.connect(func():
 		if GameState.is_playing and GameState.is_paused:
@@ -80,14 +116,14 @@ func _ready() -> void:
 			_teleport_to_world(w_idx)
 	)
 
-	# Position cleanly at World 1 Diorama
-	_enter_diorama_mode()
-
 	if _gauntlet_mode:
+		_enter_diorama_mode()
 		var runner := GauntletRunner.new()
 		runner.name = "GauntletRunner"
 		add_child(runner)
-		runner.execute(self, spire_world, atmosphere, player, _char_select, _hud, _pause_menu, _diorama_models, diorama_cam)
+		runner.execute(self, spire_world, atmosphere, player, _char_select, _hud, _pause_menu, _diorama_models, diorama_cam, _loading_screen, _opening_cutscene, _guide_settings)
+	else:
+		_enter_loading_mode()
 
 
 func _apply_clean_window_branding() -> void:
@@ -159,14 +195,45 @@ func _build_character_diorama() -> void:
 	diorama_cam.look_at(center + Vector3(0.0, 0.82, 0.0), Vector3.UP)
 
 
+func _enter_loading_mode() -> void:
+	GameState.is_playing = false
+	GameState.is_paused = false
+	GameState.is_cutscene = false
+	player.controls_enabled = false
+	player.visible = false
+	diorama_root.visible = true
+	_char_select.visible = false
+	_char_select.input_blocked = false
+	_guide_settings.visible = false
+	_hud.visible = false
+	_pause_menu.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_loading_screen.start_loading(3.8)
+	AudioDirector.play_loading_ambience()
+
+
+func _start_opening_cutscene() -> void:
+	GameState.is_cutscene = true
+	AudioDirector.swell_into_cutscene()
+	_opening_cutscene.start_descent(spire_world, atmosphere, diorama_root)
+
+
+func _on_cutscene_finished() -> void:
+	GameState.is_cutscene = false
+	_enter_diorama_mode()
+
+
 func _enter_diorama_mode() -> void:
 	GameState.is_playing = false
 	GameState.is_paused = false
+	GameState.is_cutscene = false
 	player.controls_enabled = false
 	player.visible = false
 	diorama_root.visible = true
 	diorama_cam.current = true
 	_char_select.visible = true
+	_char_select.input_blocked = false
+	_guide_settings.visible = false
 	if not _gauntlet_mode:
 		_char_select.play_intro_stagger()
 	_hud.visible = false
@@ -176,6 +243,21 @@ func _enter_diorama_mode() -> void:
 	atmosphere.apply_for_altitude(10.0, true)
 	if atmosphere.world_environment and atmosphere.world_environment.environment:
 		atmosphere.world_environment.environment.volumetric_fog_length = 40.0
+
+
+func _open_guide_settings() -> void:
+	_char_select.input_blocked = true
+	_guide_settings.open_animated()
+
+
+func _on_guide_settings_closed() -> void:
+	_char_select.input_blocked = false
+
+
+func _on_guide_world_launch(world_idx: int) -> void:
+	_guide_settings.visible = false
+	_char_select.input_blocked = false
+	_start_gameplay(world_idx)
 
 
 func _on_diorama_highlight(char_id: String) -> void:
@@ -188,23 +270,47 @@ func _on_diorama_highlight(char_id: String) -> void:
 		tw.tween_property(slot, "scale", target_scale, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
-func _start_gameplay() -> void:
+func _start_gameplay(start_world_idx: int = 0) -> void:
+	_loading_screen.skip_immediate()
+	_opening_cutscene.skip_immediate()
+	GameState.is_cutscene = false
 	diorama_root.visible = false
 	_char_select.visible = false
+	_char_select.input_blocked = false
+	_guide_settings.visible = false
 	_hud.modulate.a = 1.0
 	_hud.visible = true
 	player.visible = true
 	player.controls_enabled = true
 	player.camera_rig.camera.current = true
+	if _ghost_runner:
+		_ghost_runner.reset_ghost()
+	if _high_water_flag:
+		_high_water_flag.visible = false
+
 	GameState.reset_full_run()
 	GameState.start_run()
-	player.teleport_to_checkpoint(GameState.current_checkpoint_pos, GameState.current_checkpoint_yaw)
+
 	if atmosphere.world_environment and atmosphere.world_environment.environment:
 		atmosphere.world_environment.environment.volumetric_fog_length = 85.0
 	spire_world.set_diorama_cull(false)
-	spire_world.set_focus_world(0, false, 0.0)
-	AudioDirector.set_biome_immediate(0)
-	_hud.show_world_toast(0, GameState.WORLDS[0]["name"], GameState.WORLDS[0]["subtitle"])
+
+	if start_world_idx > 0 and GameState.world_spawn_points.has(start_world_idx):
+		var sp: Dictionary = GameState.world_spawn_points[start_world_idx]
+		GameState.activate_checkpoint(sp["id"], start_world_idx, sp["pos"], sp["yaw"])
+		GameState.current_world_idx = start_world_idx
+		player.teleport_to_checkpoint(sp["pos"], sp["yaw"])
+		spire_world.set_focus_world(start_world_idx, false, sp["pos"].y)
+		atmosphere.apply_for_altitude(sp["pos"].y, true)
+		AudioDirector.set_biome_immediate(start_world_idx)
+		var w: Dictionary = GameState.WORLDS[start_world_idx]
+		_hud.show_world_toast(start_world_idx, w["name"], w["subtitle"])
+	else:
+		player.teleport_to_checkpoint(GameState.current_checkpoint_pos, GameState.current_checkpoint_yaw)
+		spire_world.set_focus_world(0, false, 0.0)
+		atmosphere.apply_for_altitude(0.0, true)
+		AudioDirector.set_biome_immediate(0)
+		_hud.show_world_toast(0, GameState.WORLDS[0]["name"], GameState.WORLDS[0]["subtitle"])
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -232,6 +338,10 @@ func _teleport_to_world(world_idx: int) -> void:
 
 
 func _restart_full_climb() -> void:
+	if _ghost_runner:
+		_ghost_runner.reset_ghost()
+	if _high_water_flag:
+		_high_water_flag.visible = false
 	GameState.reset_full_run()
 	player.teleport_to_checkpoint(GameState.current_checkpoint_pos, GameState.current_checkpoint_yaw)
 	spire_world.set_diorama_cull(false)
@@ -260,7 +370,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_fullscreen()
 			get_viewport().set_input_as_handled()
 			return
-	if not GameState.is_playing:
+	if not GameState.is_playing or GameState.is_cutscene:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		_toggle_pause()
@@ -303,4 +413,4 @@ func _process(delta: float) -> void:
 		var py := player.global_position.y
 		atmosphere.apply_for_altitude(py, false)
 		var show_summit := py >= 1068.0
-		spire_world.set_focus_world(spire_world.world_index_for_altitude(py), show_summit, py)
+		spire_world.set_focus_world(spire_world.world_index_for_altitude(py), show_summit, py, player.velocity.y)

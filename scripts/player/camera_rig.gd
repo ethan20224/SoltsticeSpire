@@ -20,6 +20,7 @@ var _current_roll: float = 0.0
 var _shake_trauma: float = 0.0
 var _land_dip: float = 0.0
 var _hitstop_active: bool = false
+var _stick_ramp: float = 0.85
 var _rng := RandomNumberGenerator.new()
 
 
@@ -28,6 +29,41 @@ func _ready() -> void:
 	top_level = true
 	spring_arm.spring_length = base_distance
 	camera.fov = base_fov
+
+
+func _process(delta: float) -> void:
+	if not GameState.is_playing or GameState.is_paused:
+		_stick_ramp = 0.85
+		return
+
+	if PhoneController.is_active():
+		var sens: float = GameState.mouse_sensitivity
+		var y_sign: float = 1.0 if GameState.invert_y else -1.0
+
+		var look_d: Vector2 = PhoneController.consume_look_delta()
+		if look_d.length_squared() > 0.0001:
+			yaw -= look_d.x * sens * 2.6
+			pitch += look_d.y * sens * 2.6 * y_sign
+
+		var r_stick: Vector2 = PhoneController.get_look_stick()
+		var mag: float = clampf(r_stick.length(), 0.0, 1.0)
+		if mag > 0.001:
+			if mag > 0.85:
+				_stick_ramp = move_toward(_stick_ramp, 1.15, (0.30 / 0.18) * delta)
+			else:
+				_stick_ramp = move_toward(_stick_ramp, 0.85, (0.30 / 0.12) * delta)
+			var dir: Vector2 = r_stick / mag
+			var curved: float = lerpf(mag, mag * mag * mag, 0.55)
+			var yaw_rate: float = sens * 2250.0 * _stick_ramp
+			var pitch_rate: float = sens * 1650.0 * _stick_ramp
+			yaw -= dir.x * curved * yaw_rate * delta
+			pitch += dir.y * curved * pitch_rate * y_sign * delta
+		else:
+			_stick_ramp = 0.85
+
+		pitch = clampf(pitch, deg_to_rad(pitch_min_deg), deg_to_rad(pitch_max_deg))
+
+	rotation = Vector3(pitch, yaw, _current_roll)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -45,21 +81,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func update_rig(target_pos: Vector3, player_vel: Vector3, flow: float, wall_roll_deg: float, is_dashing: bool, delta: float) -> void:
-	# Apply iPhone DualSense Right-Stick Orbit + Direct Touchpad/Thumb-Drag Look Delta using exact 1:1 Mac mouse_sensitivity
-	if GameState.is_playing and not GameState.is_paused and PhoneController.is_active():
-		var sens := GameState.mouse_sensitivity
-		var y_sign := 1.0 if GameState.invert_y else -1.0
-		var look_d := PhoneController.consume_look_delta()
-		if look_d.length_squared() > 0.0001:
-			yaw -= look_d.x * sens
-			pitch += look_d.y * sens * y_sign
-		var r_stick := PhoneController.get_look_stick()
-		if r_stick.length_squared() > 0.001:
-			var stick_rate := sens * 1000.0
-			yaw -= r_stick.x * stick_rate * delta
-			pitch += r_stick.y * stick_rate * y_sign * delta
-		pitch = clampf(pitch, deg_to_rad(pitch_min_deg), deg_to_rad(pitch_max_deg))
-
 	# Smoothly follow target with subtle vertical responsiveness and landing dip spring
 	_land_dip = lerpf(_land_dip, 0.0, clampf(delta * 12.0, 0.0, 1.0))
 	var desired_pos := target_pos + Vector3(0.0, follow_height + _land_dip, 0.0)
@@ -94,6 +115,7 @@ func update_rig(target_pos: Vector3, player_vel: Vector3, flow: float, wall_roll
 func snap_to(target_pos: Vector3, new_yaw: float) -> void:
 	yaw = new_yaw
 	pitch = -0.22
+	_stick_ramp = 0.85
 	global_position = target_pos + Vector3(0.0, follow_height, 0.0)
 	rotation = Vector3(pitch, yaw, 0.0)
 

@@ -61,8 +61,11 @@ func build(audit: Array) -> Vector3:
 	# =========================================================================
 	var p_start := Vector3(0.0, 0.0, 26.0)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, p_start, 2.6, 1.0, Vector3(2.5, 1.3, 2.5), Vector3.ZERO, TERRACE_STYLE, audit, "start")
-	# Lush MultiMesh clover & wildflower tufts lining the terrace lawn rim!
+	# Lush interactive wind-swaying grass carpet, colorful wildflowers & mossy terrace rim stones!
+	WorldHelper.add_lush_grass_carpet(self, p_start, 5.75, 240, 1011, 0.0)
 	WorldHelper.add_grass_tuft_rim(self, p_start, 4.4, 5.9, 64, 1001)
+	WorldHelper.add_wildflower_scatter(self, p_start, 2.2, 5.6, 24, 1021)
+	WorldHelper.add_mossy_stones(self, p_start, 5.6, 5, 1031, true)
 	WorldHelper.add_shrine(self, "w1_cp1", 0, p_start + Vector3(-5.0, 0.0, -3.5), 0.0, true, false, audit, Vector3(5.0, 0.8, 3.1))
 
 	# Cozy Conservatory Sanctuary Dressing: Lumpy Leaf-Card Trees, Potted Ferns & Warm Lamp Posts!
@@ -97,18 +100,23 @@ func build(audit: Array) -> Vector3:
 	# Opening joyful sprint-and-jump cadence along sunlit aqueduct arches spiraling clockwise
 	var p := Vector3(0.0, 1.5, 16.5)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, 0.0, 0.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, p + Vector3(0.0, 0.6, -2.5), Vector3(5.5, 4.6, 8.5), 2.4, 4)
 
 	p = Vector3(5.5, 4.0, 8.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, p, 2.6, 0.8, Vector3(1.1, 1.0, 1.1), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_grass_tuft_rim(self, p, 2.0, 2.6, 22, 1002)
+	WorldHelper.add_wildflower_scatter(self, p, 1.3, 2.5, 8, 1022)
 
 	p = Vector3(13.0, 6.8, 3.0)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, p, 2.6, 0.8, Vector3(1.0, 1.0, 1.0), Vector3.ZERO, STYLE, audit)
+	WorldHelper.add_wildflower_scatter(self, p, 1.2, 2.3, 8, 1023)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, p + Vector3(1.5, 0.0, 0.8), -45.0, STYLE)
+	WorldHelper.add_solar_mote_arc(self, Vector3(13.0, 7.5, 3.0), Vector3(19.5, 9.9, -3.5), 2.2, 4)
 
-	# First Giant Botanical Lily Pad Bounce
+	# First Giant Botanical Lily Pad Bounce (L111 -> L114)
 	p = Vector3(19.5, 9.2, -3.5)
-	WorldHelper.add_bounce_pad(self, LILY, p, 21.5, 2.3, Vector3(0.0, 0.0, -2.5), STYLE, audit)
+	WorldHelper.add_bounce_pad(self, LILY, p, 23.4, 2.3, Vector3(2.0, 0.0, -6.2), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(19.5, 10.2, -3.5), Vector3(21.5, 18.2, -11.5), 4.2, 5)
 
 	p = Vector3(21.5, 17.5, -11.5)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, -18.0, 0.0), STYLE, audit)
@@ -125,12 +133,15 @@ func build(audit: Array) -> Vector3:
 	for idx in range(act1_steps.size()):
 		var sp: Vector3 = act1_steps[idx]
 		WorldHelper.add_static_cyl_platform(self, PLINTH, sp, 2.6, 0.8, Vector3(1.05, 1.0, 1.05), Vector3.ZERO, STYLE, audit)
+		WorldHelper.add_wildflower_scatter(self, sp, 1.2, 2.4, 6, 1024 + idx)
 		if idx == 1:
 			WorldHelper.add_dressing_cluster(self, CLUSTER, sp + Vector3(0.0, 0.0, -1.7), 180.0, STYLE)
 			WorldHelper.add_grass_tuft_rim(self, sp, 1.9, 2.5, 20, 1003)
 
 	WorldHelper.add_bounce_pad(self, LILY, Vector3(-6.5, 30.5, -23.0), 22.0, 2.3, Vector3(-3.0, 0.0, 2.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-6.5, 31.5, -23.0), Vector3(-14.5, 39.8, -18.0), 4.2, 4)
 	WorldHelper.add_bounce_pad(self, LILY, Vector3(-14.5, 39.0, -18.0), 22.0, 2.3, Vector3(-2.5, 0.0, 3.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-14.5, 40.0, -18.0), Vector3(-21.0, 48.2, -11.0), 4.2, 4)
 
 	p = Vector3(-21.0, 47.5, -11.0)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, 45.0, 0.0), STYLE, audit)
@@ -139,7 +150,10 @@ func build(audit: Array) -> Vector3:
 	var cp2 := Vector3(-26.0, 51.0, -1.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, cp2, 2.6, 1.0, Vector3(1.75, 1.2, 1.75), Vector3.ZERO, STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w1_cp2", 0, cp2, 165.0, false, false, audit)
+	WorldHelper.add_lush_grass_carpet(self, cp2, 4.1, 96, 1012, 1.2)
 	WorldHelper.add_grass_tuft_rim(self, cp2, 3.2, 4.2, 36, 1004)
+	WorldHelper.add_wildflower_scatter(self, cp2, 2.0, 4.0, 14, 1028)
+	WorldHelper.add_mossy_stones(self, cp2, 4.1, 3, 1032)
 	WorldHelper.add_lamp_post(self, cp2 + Vector3(-2.6, 0.0, -1.8), 45.0, Color(1.0, 0.72, 0.34), 3.6, 10.0)
 	WorldHelper.add_catenary_lanterns(self, cp2 + Vector3(2.2, 6.5, 0.0), Vector3(-15.5, 58.5, -1.0), 5, 1.0, Color(1.0, 0.66, 0.32))
 
@@ -154,17 +168,21 @@ func build(audit: Array) -> Vector3:
 	]
 	for idx in range(crumble_run.size()):
 		WorldHelper.add_crumbling_tile(self, FLAG, crumble_run[idx], 1.05, false, Vector3(0.0, idx * 20.0, 0.0), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-25.0, 54.0, 8.0), Vector3(-15.5, 59.8, 23.0), 2.8, 4)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-15.5, 59.8, 23.0), Vector3(1.5, 65.2, 27.5), 2.6, 4)
 
 	var ud1_base := Vector3(1.5, 64.5, 27.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, ud1_base, 2.6, 0.8, Vector3(1.25, 1.0, 1.25), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, ud1_base + Vector3(-1.6, 0.0, 1.4), 35.0, STYLE)
 	WorldHelper.add_updraft(self, ud1_base + Vector3(3.5, 0.5, -2.5), 18.0, 3.0, Color(0.65, 1.0, 0.82), audit)
+	WorldHelper.add_solar_mote_arc(self, ud1_base + Vector3(3.5, 2.0, -2.5), Vector3(11.5, 81.8, 23.0), 4.5, 4)
 	WorldHelper.add_sun_shard(self, "w1_s2", ud1_base + Vector3(5.0, 15.5, -3.5))
 
 	WorldHelper.add_static_box_platform(self, ARCH, Vector3(11.5, 81.0, 23.0), Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, -52.0, 0.0), STYLE, audit)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, Vector3(19.5, 84.0, 16.5), 2.6, 0.8, Vector3(1.0, 1.0, 1.0), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_crumbling_tile(self, FLAG, Vector3(25.0, 87.0, 9.0), 0.95, false, Vector3(0.0, 15.0, 0.0), audit)
 	WorldHelper.add_bounce_pad(self, LILY, Vector3(27.5, 89.5, 0.5), 22.5, 2.3, Vector3(0.0, 0.0, -3.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(27.5, 90.5, 0.5), Vector3(26.5, 99.2, -8.5), 4.2, 4)
 	var mid_plinth := Vector3(26.5, 98.5, -8.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, mid_plinth, 2.6, 0.8, Vector3(1.15, 1.0, 1.15), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, mid_plinth + Vector3(1.7, 0.0, -0.5), -85.0, STYLE)
@@ -175,7 +193,10 @@ func build(audit: Array) -> Vector3:
 	var cp3 := Vector3(6.5, 108.5, -26.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, cp3, 2.6, 1.0, Vector3(1.75, 1.2, 1.75), Vector3.ZERO, STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w1_cp3", 0, cp3, 75.0, false, false, audit)
+	WorldHelper.add_lush_grass_carpet(self, cp3, 4.1, 96, 1013, 1.2)
 	WorldHelper.add_grass_tuft_rim(self, cp3, 3.2, 4.2, 34, 1005)
+	WorldHelper.add_wildflower_scatter(self, cp3, 2.0, 4.0, 14, 1029)
+	WorldHelper.add_mossy_stones(self, cp3, 4.1, 3, 1033)
 	WorldHelper.add_lamp_post(self, cp3 + Vector3(2.4, 0.0, -2.0), -135.0, Color(1.0, 0.72, 0.34), 3.6, 10.0)
 
 	# =========================================================================
@@ -183,23 +204,31 @@ func build(audit: Array) -> Vector3:
 	# =========================================================================
 	WorldHelper.add_static_box_platform(self, ARCH, Vector3(-3.0, 111.5, -27.0), Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, 85.0, 0.0), STYLE, audit)
 	WorldHelper.add_bounce_pad(self, LILY, Vector3(-12.5, 114.0, -24.5), 22.0, 2.3, Vector3(-3.0, 0.0, 2.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-12.5, 115.0, -24.5), Vector3(-20.0, 123.2, -18.5), 4.0, 4)
 	WorldHelper.add_crumbling_tile(self, FLAG, Vector3(-20.0, 122.5, -18.5), 0.90, false, Vector3(0.0, 35.0, 0.0), audit)
 	WorldHelper.add_bounce_pad(self, LILY, Vector3(-25.5, 125.0, -10.5), 22.5, 2.3, Vector3(-1.0, 0.0, 3.5), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-25.5, 126.0, -10.5), Vector3(-27.0, 134.8, -1.0), 4.2, 4)
 	var high_plinth := Vector3(-27.0, 134.0, -1.0)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, high_plinth, 2.6, 0.8, Vector3(1.15, 1.0, 1.15), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, high_plinth + Vector3(-1.7, 0.0, -0.5), 95.0, STYLE)
 
 	WorldHelper.add_updraft(self, Vector3(-25.5, 134.5, 7.5), 18.0, 3.0, Color(0.85, 0.96, 0.62), audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-25.5, 136.0, 7.5), Vector3(-20.0, 151.8, 14.5), 4.5, 4)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, Vector3(-20.0, 151.0, 14.5), 2.6, 0.8, Vector3(1.2, 1.0, 1.2), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_sun_shard(self, "w1_s3", Vector3(-12.0, 157.0, 16.5))
 
 	WorldHelper.add_crumbling_tile(self, FLAG, Vector3(-13.0, 154.5, 20.5), 0.90, false, Vector3.ZERO, audit)
-	WorldHelper.add_bounce_pad(self, LILY, Vector3(-5.0, 157.5, 24.5), 23.5, 2.4, Vector3(3.0, 0.0, 0.5), STYLE, audit)
+	WorldHelper.add_bounce_pad(self, LILY, Vector3(-5.0, 157.5, 24.5), 25.2, 2.4, Vector3(5.5, 0.0, 0.8), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(-5.0, 158.5, 24.5), Vector3(4.5, 168.8, 25.5), 4.5, 5)
 	WorldHelper.add_static_box_platform(self, ARCH, Vector3(4.5, 168.0, 25.5), Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, -78.0, 0.0), STYLE, audit)
+	WorldHelper.add_solar_mote_arc(self, Vector3(4.5, 168.8, 25.5), Vector3(13.5, 173.8, 23.0), 2.5, 4)
 
 	# World 1 -> World 2 Monumental Ascension Gate
 	var gate_pos := Vector3(13.5, 173.0, 23.0)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, gate_pos, 2.6, 1.0, Vector3(2.1, 1.2, 2.1), Vector3.ZERO, STYLE, audit, "world_gate_pad")
+	WorldHelper.add_lush_grass_carpet(self, gate_pos, 4.9, 110, 1014, 1.0)
+	WorldHelper.add_wildflower_scatter(self, gate_pos, 2.2, 4.8, 16, 1030)
+	WorldHelper.add_mossy_stones(self, gate_pos, 4.9, 4, 1034)
 	WorldHelper.add_landmark(self, GATE, gate_pos + Vector3(2.0, 0.0, -2.0), Vector3.ONE, Vector3(0.0, -45.0, 0.0), STYLE)
 	WorldHelper.add_lamp_post(self, gate_pos + Vector3(-2.6, 0.0, 2.2), 15.0, Color(1.0, 0.72, 0.34), 3.6, 12.0)
 	return gate_pos

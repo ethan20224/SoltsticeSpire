@@ -99,6 +99,8 @@ func _on_body_entered(body: Node3D) -> void:
 
 	var spawn_pos := global_position + spawn_offset
 	var is_new := GameState.activate_checkpoint(checkpoint_id, world_idx, spawn_pos, deg_to_rad(spawn_yaw_deg))
+	if body.has_method("on_shrine_activated"):
+		body.on_shrine_activated()
 	if not _activated or is_new:
 		_activated = true
 		_ignite_visuals()

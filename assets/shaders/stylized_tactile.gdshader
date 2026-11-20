@@ -156,10 +156,12 @@ void light() {
 	DIFFUSE_LIGHT += diff;
 
 	vec3 h = normalize(LIGHT + VIEW);
-	float spec_exp = mix(112.0, 14.0, ROUGHNESS * ROUGHNESS);
-	// Completely suppress wet specular sparkle on matte foliage/moss (ROUGHNESS >= 0.80)
-	float spec_gate = smoothstep(0.80, 0.20, ROUGHNESS);
-	float spec = pow(max(dot(NORMAL, h), 0.0), spec_exp) * spec_gate * 0.45 * lit;
-	vec3 spec_col = mix(LIGHT_COLOR, ALBEDO * LIGHT_COLOR, METALLIC);
+	float spec_exp = mix(128.0, 14.0, ROUGHNESS * ROUGHNESS);
+	// Completely suppress wet specular sparkle on matte foliage/moss (ROUGHNESS >= 0.82),
+	// while making hammered brass/gold & wet Monsoon roofs gleam cleanly!
+	float spec_gate = smoothstep(0.82, 0.18, ROUGHNESS);
+	float spec_boost = mix(0.45, 0.86, METALLIC);
+	float spec = pow(max(dot(NORMAL, h), 0.0), spec_exp) * spec_gate * spec_boost * lit;
+	vec3 spec_col = mix(LIGHT_COLOR, mix(LIGHT_COLOR, ALBEDO * LIGHT_COLOR, 0.72), METALLIC);
 	SPECULAR_LIGHT += spec_col * spec;
 }

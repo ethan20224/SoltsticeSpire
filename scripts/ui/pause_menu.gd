@@ -1,22 +1,25 @@
 extends Control
 class_name PauseMenuUI
-## Tactile Warm-Walnut Pause Overlay with OFL Nunito typography, Live Explorer Swap,
-## Realm Fast-Travel, iPhone 15 DualSense QR Pairing Dock, live Sensitivity/Volume sliders,
+## Tactile Warm-Walnut Pause Overlay with OFL Nunito typography,
+## Realm Fast-Travel, iPhone 15 DualSense QR Pairing Dock, live Sensitivity/Volume/Display settings,
 ## and clean 200ms TRANS_EXPO reveal.
 
 signal resume_requested()
 signal world_teleport_requested(world_idx: int)
 signal restart_requested()
-signal title_requested()
 
 const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
 
 var _card: PanelContainer
-var _char_btns: Dictionary = {}
 var _kb_btn: Button
 var _phone_btn: Button
+var _sens_slider: HSlider
+var _mus_slider: HSlider
 var _sens_val_lbl: Label
 var _mus_val_lbl: Label
+var _fullscreen_btn: Button
+var _invert_y_btn: Button
+var _syncing_ui: bool = false
 
 
 func _ready() -> void:
@@ -24,16 +27,27 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	_build_menu()
-	GameState.character_changed.connect(func(_c): _refresh_char_buttons())
-	PhoneController.mode_changed.connect(func(_u): _refresh_ctrl_mode_buttons())
-	PhoneController.connection_changed.connect(func(_c, _n, _d): _refresh_ctrl_mode_buttons())
+	PhoneController.mode_changed.connect(func(_u: bool): _refresh_ctrl_mode_buttons())
+	PhoneController.connection_changed.connect(func(_c: bool, _n: int, _d: String): _refresh_ctrl_mode_buttons())
 
 
 func open_animated() -> void:
 	visible = true
-	_refresh_char_buttons()
-	_refresh_ctrl_mode_buttons()
+	_sync_controls_from_state()
 	UITheme.animate_enter(_card, 0.0, 0.20)
+
+
+func _sync_controls_from_state() -> void:
+	_syncing_ui = true
+	if _sens_slider:
+		_sens_slider.value = GameState.mouse_sensitivity
+		_sens_val_lbl.text = "%.1fx" % (GameState.mouse_sensitivity / 0.0024)
+	if _mus_slider:
+		_mus_slider.value = GameState.music_volume
+		_mus_val_lbl.text = "%d%%" % int(round(GameState.music_volume * 100.0))
+	_syncing_ui = false
+	_refresh_toggles()
+	_refresh_ctrl_mode_buttons()
 
 
 func _build_menu() -> void:
@@ -93,28 +107,6 @@ func _build_menu() -> void:
 	)
 	v.add_child(resume_b)
 
-	# Explorer Switcher (warm cream active chip vs sleek dark unselected!)
-	var c_lbl := Label.new()
-	c_lbl.text = "Switch Explorer"
-	UITheme.apply_font(c_lbl, "bold", 13, UITheme.INK_SECONDARY)
-	v.add_child(c_lbl)
-
-	var c_row := HBoxContainer.new()
-	c_row.add_theme_constant_override("separation", 10)
-	v.add_child(c_row)
-	for cid in ["pip", "koko", "vesper"]:
-		var cb := Button.new()
-		cb.text = GameState.CHARACTERS[cid]["name"]
-		cb.custom_minimum_size = Vector2(0, 38)
-		cb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cb.pressed.connect(func():
-			GameState.set_character(cid)
-			AudioDirector.play_sfx("ui_click", -2.0, 1.1)
-		)
-		c_row.add_child(cb)
-		_char_btns[cid] = cb
-	_refresh_char_buttons()
-
 	# Realm Fast-Travel (hover = border brighten only, zero stray highlight!)
 	var w_lbl := Label.new()
 	w_lbl.text = "Realm Fast-Travel"
@@ -166,11 +158,11 @@ func _build_menu() -> void:
 
 	var how_data := [
 		["Goal:", "Climb 0m to 1,085m across 6 realms to the Summit Crown."],
-		["Sky Shrines:", "Touch glowing white-gold shrines to save your checkpoint."],
-		["Sun-Shards:", "Collect 18 floating golden crystals (3 per realm)."],
-		["Flow State:", "Chain jumps, pads & wall-kicks to build speed & music."],
-		["Bounce & Orbs:", "Pads & cyan Spirit-Orbs (□ / R2 / RMB) refresh Air-Dash."],
-		["Realms & Walls:", "Ride wind columns, leap Portal Frames & wall-run bells."],
+		["Sky Shrines:", "Touch glowing shrines to save. Land below one? Press R within 30s to rewind!"],
+		["Sun-Shards & Motes:", "Collect 18 golden Sun-Shards & glowing Solar Mote trails."],
+		["Flow & Solar Charge:", "Chain bunny-hops, pads & wall-kicks; Max Flow grants a bonus Air-Dash!"],
+		["Sky-Dive & Meteor:", "Hold C / ○ mid-air to Sky-Dive; slam a Bounce Pad for a Meteor Bounce!"],
+		["Explorers:", "Pip (warm ledge grace) · Koko (zippy dash/slide) · Vesper (hold Jump to flutter)."],
 	]
 	for item in how_data:
 		var hrow := HBoxContainer.new()
@@ -179,13 +171,14 @@ func _build_menu() -> void:
 
 		var hk := Label.new()
 		hk.text = item[0]
-		hk.custom_minimum_size = Vector2(92, 0)
+		hk.custom_minimum_size = Vector2(118, 0)
 		UITheme.apply_font(hk, "bold", 11, UITheme.ACCENT_AMBER)
 		hrow.add_child(hk)
 
 		var hv := Label.new()
 		hv.text = item[1]
 		hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hv.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		UITheme.apply_font(hv, "semibold", 11, UITheme.INK_PRIMARY)
 		hrow.add_child(hv)
 
@@ -205,12 +198,12 @@ func _build_menu() -> void:
 	inst_v.add_child(ctrl_title)
 
 	var controls_data := [
-		["Move / Camera:", "WASD + Mouse  ·  L-Stick + R-Stick / Touchpad"],
-		["Jump / Wall-Kick:", "Space  ·  ✕ Cross or R1 Bumper"],
+		["Move / Camera:", "WASD + Mouse  ·  L-Stick (Edge Sprint) + R-Stick"],
+		["Jump / Wall-Kick:", "Space  ·  ✕ Cross or R1 (Vesper: Hold to Flutter)"],
 		["Air-Dash / Orb:", "Shift / E / RMB  ·  □ Square or R2 Trigger"],
-		["Slide / Long-Jump:", "C / Ctrl  ·  ○ Circle or L2 Trigger"],
-		["Rewind to Shrine:", "R  ·  △ Triangle or Top Shrine Pill"],
-		["Swap / Fullscreen:", "1-3 / F (Full Screen) / Esc  ·  Explorer Chips"],
+		["Slide / Sky-Dive:", "C / Ctrl  ·  ○ Circle or L2 (Hold mid-air to Dive)"],
+		["Rewind (30s Window):", "R  ·  △ Triangle or Top Shrine Pill"],
+		["Fullscreen / Menu:", "F (Fullscreen) / Esc  ·  ≡ Menu Pill"],
 	]
 	for item in controls_data:
 		var crow := HBoxContainer.new()
@@ -219,13 +212,14 @@ func _build_menu() -> void:
 
 		var k_lbl := Label.new()
 		k_lbl.text = item[0]
-		k_lbl.custom_minimum_size = Vector2(114, 0)
+		k_lbl.custom_minimum_size = Vector2(124, 0)
 		UITheme.apply_font(k_lbl, "bold", 11, UITheme.ACCENT_AMBER)
 		crow.add_child(k_lbl)
 
 		var v_lbl := Label.new()
 		v_lbl.text = item[1]
 		v_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		UITheme.apply_font(v_lbl, "semibold", 11, UITheme.INK_PRIMARY)
 		crow.add_child(v_lbl)
 
@@ -249,27 +243,30 @@ func _build_menu() -> void:
 	sl.custom_minimum_size = Vector2(148, 0)
 	UITheme.apply_font(sl, "semibold", 14, UITheme.INK_SECONDARY)
 	s_row.add_child(sl)
-	var sens_slider := HSlider.new()
-	sens_slider.focus_mode = Control.FOCUS_NONE
-	sens_slider.min_value = 0.0008
-	sens_slider.max_value = 0.0060
-	sens_slider.step = 0.0002
-	sens_slider.value = GameState.mouse_sensitivity
-	sens_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sens_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	sens_slider.add_theme_stylebox_override("slider", track_bg)
-	sens_slider.add_theme_stylebox_override("grabber_area", track_fill)
-	sens_slider.add_theme_stylebox_override("grabber_area_highlight", track_fill)
-	s_row.add_child(sens_slider)
+	_sens_slider = HSlider.new()
+	_sens_slider.focus_mode = Control.FOCUS_NONE
+	_sens_slider.min_value = 0.0008
+	_sens_slider.max_value = 0.0060
+	_sens_slider.step = 0.0002
+	_sens_slider.value = GameState.mouse_sensitivity
+	_sens_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sens_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_sens_slider.add_theme_stylebox_override("slider", track_bg)
+	_sens_slider.add_theme_stylebox_override("grabber_area", track_fill)
+	_sens_slider.add_theme_stylebox_override("grabber_area_highlight", track_fill)
+	s_row.add_child(_sens_slider)
 	_sens_val_lbl = Label.new()
 	_sens_val_lbl.custom_minimum_size = Vector2(48, 0)
 	_sens_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_sens_val_lbl.text = "%.1fx" % (GameState.mouse_sensitivity / 0.0024)
 	UITheme.apply_font(_sens_val_lbl, "bold", 13, UITheme.INK_PRIMARY)
 	s_row.add_child(_sens_val_lbl)
-	sens_slider.value_changed.connect(func(val: float):
+	_sens_slider.value_changed.connect(func(val: float):
+		if _syncing_ui:
+			return
 		GameState.mouse_sensitivity = val
 		_sens_val_lbl.text = "%.1fx" % (val / 0.0024)
+		GameState.save_persistent_data()
 	)
 
 	var m_row := HBoxContainer.new()
@@ -280,30 +277,58 @@ func _build_menu() -> void:
 	ml.custom_minimum_size = Vector2(148, 0)
 	UITheme.apply_font(ml, "semibold", 14, UITheme.INK_SECONDARY)
 	m_row.add_child(ml)
-	var mus_slider := HSlider.new()
-	mus_slider.focus_mode = Control.FOCUS_NONE
-	mus_slider.min_value = 0.0
-	mus_slider.max_value = 1.0
-	mus_slider.step = 0.05
-	mus_slider.value = GameState.music_volume
-	mus_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mus_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	mus_slider.add_theme_stylebox_override("slider", track_bg)
-	mus_slider.add_theme_stylebox_override("grabber_area", track_fill)
-	mus_slider.add_theme_stylebox_override("grabber_area_highlight", track_fill)
-	m_row.add_child(mus_slider)
+	_mus_slider = HSlider.new()
+	_mus_slider.focus_mode = Control.FOCUS_NONE
+	_mus_slider.min_value = 0.0
+	_mus_slider.max_value = 1.0
+	_mus_slider.step = 0.05
+	_mus_slider.value = GameState.music_volume
+	_mus_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mus_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_mus_slider.add_theme_stylebox_override("slider", track_bg)
+	_mus_slider.add_theme_stylebox_override("grabber_area", track_fill)
+	_mus_slider.add_theme_stylebox_override("grabber_area_highlight", track_fill)
+	m_row.add_child(_mus_slider)
 	_mus_val_lbl = Label.new()
 	_mus_val_lbl.custom_minimum_size = Vector2(48, 0)
 	_mus_val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_mus_val_lbl.text = "%d%%" % int(round(GameState.music_volume * 100.0))
 	UITheme.apply_font(_mus_val_lbl, "bold", 13, UITheme.INK_PRIMARY)
 	m_row.add_child(_mus_val_lbl)
-	mus_slider.value_changed.connect(func(val: float):
-		GameState.music_volume = val
+	_mus_slider.value_changed.connect(func(val: float):
+		if _syncing_ui:
+			return
+		AudioDirector.set_music_volume(val, true)
 		_mus_val_lbl.text = "%d%%" % int(round(val * 100.0))
 	)
 
-	# Footer actions ("Restart Climb", "Change Explorer", "Quit Game")
+	# Fullscreen & Invert Camera Y Toggles Row
+	var toggle_row := HBoxContainer.new()
+	toggle_row.add_theme_constant_override("separation", 10)
+	v.add_child(toggle_row)
+
+	_fullscreen_btn = Button.new()
+	_fullscreen_btn.custom_minimum_size = Vector2(0, 36)
+	_fullscreen_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_fullscreen_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.05)
+		_toggle_fullscreen()
+	)
+	toggle_row.add_child(_fullscreen_btn)
+
+	_invert_y_btn = Button.new()
+	_invert_y_btn.custom_minimum_size = Vector2(0, 36)
+	_invert_y_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_invert_y_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.05)
+		GameState.invert_y = not GameState.invert_y
+		GameState.save_persistent_data()
+		_refresh_toggles()
+	)
+	toggle_row.add_child(_invert_y_btn)
+	_refresh_toggles()
+
+	# Footer actions ("Restart Climb", "Quit Game")
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 10)
 	v.add_child(foot)
@@ -319,20 +344,9 @@ func _build_menu() -> void:
 	)
 	foot.add_child(rest_b)
 
-	var title_b := Button.new()
-	title_b.text = "Change Explorer"
-	title_b.custom_minimum_size = Vector2(0, 42)
-	title_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UITheme.style_secondary_pill(title_b, false, 14)
-	title_b.pressed.connect(func():
-		AudioDirector.play_sfx("ui_click")
-		title_requested.emit()
-	)
-	foot.add_child(title_b)
-
 	var quit_b := Button.new()
 	quit_b.text = "Quit Game"
-	quit_b.custom_minimum_size = Vector2(116, 42)
+	quit_b.custom_minimum_size = Vector2(140, 42)
 	UITheme.style_secondary_pill(quit_b, false, 14)
 	quit_b.pressed.connect(func(): get_tree().quit())
 	foot.add_child(quit_b)
@@ -379,11 +393,28 @@ func _build_menu() -> void:
 	_refresh_ctrl_mode_buttons()
 
 
-func _refresh_char_buttons() -> void:
-	for cid in _char_btns:
-		var cb: Button = _char_btns[cid]
-		var active: bool = (str(cid) == GameState.selected_character)
-		UITheme.style_secondary_pill(cb, active, 14)
+func _is_fullscreen() -> bool:
+	var mode := DisplayServer.window_get_mode()
+	return mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+
+
+func _toggle_fullscreen() -> void:
+	if _is_fullscreen():
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	_refresh_toggles()
+
+
+func _refresh_toggles() -> void:
+	if _fullscreen_btn:
+		var fs_on := _is_fullscreen()
+		_fullscreen_btn.text = "Fullscreen: On" if fs_on else "Fullscreen: Off"
+		UITheme.style_secondary_pill(_fullscreen_btn, fs_on, 13)
+	if _invert_y_btn:
+		var inv_on := GameState.invert_y
+		_invert_y_btn.text = "Invert Camera Y: On" if inv_on else "Invert Camera Y: Off"
+		UITheme.style_secondary_pill(_invert_y_btn, inv_on, 13)
 
 
 func _refresh_ctrl_mode_buttons() -> void:

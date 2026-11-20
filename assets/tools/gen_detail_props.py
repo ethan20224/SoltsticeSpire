@@ -1,11 +1,14 @@
 """
-Blender 5.2.1 LTS AAA Detail Props & Monumental Framing Landmarks Generator (v2 Polish)
-Upgrades:
-  - pendant_lamp_post.glb: warm honey-amber LampGlow (never white-clipping!)
-  - garden_tree.glb: lumpy sculpted organic foliage clusters (matte roughness >= 0.90) + 36 UV-mapped
-    alpha-scissor silhouette LeafCards (kills glossy pickle-ellipsoids!)
-  - pip_diorama_lantern.glb: ornate heirloom brass ember lantern placed beside Pip in the Diorama!
-  - potted_fern.glb, brass_astrolabe_sphere.glb, torii_sky_gate.glb, rose_window_arch.glb, floating_candle_cluster.glb
+Blender 5.2.1 LTS AAA Detail Props & Monumental Framing Landmarks Generator (v3 AAA Polish)
+Exports to assets/models/scenery/:
+  - pendant_lamp_post.glb
+  - pip_diorama_lantern.glb
+  - potted_fern.glb
+  - garden_tree.glb (lush LeafCard alpha-scissor canopy + coral-pink & sunlit-gold blossoms + fluted twisted roots + fluted terracotta planter)
+  - brass_astrolabe_sphere.glb
+  - torii_sky_gate.glb
+  - rose_window_arch.glb (ornate Gothic Cathedral Rose Window with trefoil stone tracery + multi-ring ruby/gold/amethyst/sapphire stained glass + pointed finial spires)
+  - floating_candle_cluster.glb (multi-height tapered beeswax candles + wax drips + ornate brass saucers + teardrop flames)
 """
 
 import os
@@ -77,15 +80,14 @@ def cyl(name, r1, r2, h, segs, m, loc=(0, 0, 0), rot=(0, 0, 0), smooth=True, bev
     return add_bm(name, bm, m, loc=loc, rot=rot, smooth=smooth, bevel=bevel)
 
 
-def sphere(name, rad, m, loc=(0, 0, 0), u=14, v=10, subsurf=1):
+def sphere(name, rad, m, loc=(0, 0, 0), rot=(0, 0, 0), u=14, v=10, subsurf=1):
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=1.0)
     bmesh.ops.scale(bm, vec=rad, verts=bm.verts)
-    return add_bm(name, bm, m, loc=loc, smooth=True, subsurf=subsurf)
+    return add_bm(name, bm, m, loc=loc, rot=rot, smooth=True, subsurf=subsurf)
 
 
 def lumpy_foliage_blob(name, rad, m, loc=(0, 0, 0), seed=1):
-    """Organic bumpy sculpted Ghibli canopy clump (replaces smooth pickle ellipsoids!)."""
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
     for v in bm.verts:
@@ -95,7 +97,6 @@ def lumpy_foliage_blob(name, rad, m, loc=(0, 0, 0), seed=1):
             + 0.12 * math.sin(p.z * 5.1 - seed * 0.9) * math.cos(p.x * 4.5)
             + 0.08 * math.cos((p.x + p.y + p.z) * 6.0 + seed * 2.3)
         )
-        # Flatten bottom slightly like sunlit cumulus/bonsai foliage pads
         z_scale = 0.72 if p.z < 0.0 else 1.05
         v.co.x = p.x * (1.0 + bump) * rad[0]
         v.co.y = p.y * (1.0 + bump) * rad[1]
@@ -122,13 +123,50 @@ def torus(name, R, r, maj_s, min_s, m, loc=(0, 0, 0), rot=(0, 0, 0)):
     return add_bm(name, bm, m, loc=loc, rot=rot, smooth=True)
 
 
+def sweep_tube(name, points, radii, m, segs=8, cap=True):
+    bm = bmesh.new()
+    rings = []
+    n = len(points)
+    prev_up = Vector((0, 0, 1))
+    for i, pt in enumerate(points):
+        if i == 0:
+            tangent = (points[1] - points[0]).normalized()
+        elif i == n - 1:
+            tangent = (points[-1] - points[-2]).normalized()
+        else:
+            tangent = (points[i + 1] - points[i - 1]).normalized()
+        if abs(tangent.dot(prev_up)) > 0.94:
+            prev_up = Vector((1, 0, 0)) if abs(tangent.x) < 0.8 else Vector((0, 1, 0))
+        side = tangent.cross(prev_up).normalized()
+        up = side.cross(tangent).normalized()
+        prev_up = up
+        r = radii[i]
+        ring = []
+        for s in range(segs):
+            a = 2.0 * math.pi * s / segs
+            ring.append(bm.verts.new(pt + (side * math.cos(a) + up * math.sin(a)) * r))
+        rings.append(ring)
+    for i in range(n - 1):
+        for s in range(segs):
+            sn = (s + 1) % segs
+            bm.faces.new((rings[i][s], rings[i][sn], rings[i + 1][sn], rings[i + 1][s]))
+    if cap:
+        c0 = bm.verts.new(points[0])
+        c1 = bm.verts.new(points[-1])
+        for s in range(segs):
+            sn = (s + 1) % segs
+            bm.faces.new((c0, rings[0][sn], rings[0][s]))
+            bm.faces.new((c1, rings[-1][s], rings[-1][sn]))
+    return add_bm(name, bm, m, smooth=True)
+
+
 def join_by_material():
     by_mat = {}
     for obj in list(bpy.data.objects):
         if obj.type == "MESH" and len(obj.data.materials) == 1 and obj.data.materials[0] is not None:
             mname = obj.data.materials[0].name
             by_mat.setdefault(mname, []).append(obj)
-    for mname, objs in by_mat.items():
+    for _, objs in by_mat.items():
         if len(objs) <= 1:
             continue
         for o in objs:
@@ -156,13 +194,12 @@ def build_pendant_lamp_post():
     clear()
     m_iron = mat("LampIron", (0.14, 0.16, 0.18), rough=0.36, metal=0.84)
     m_brass = mat("LampBrass", (0.78, 0.56, 0.18), rough=0.25, metal=0.90)
-    # Rich warm honey-amber emission (stays saturated gold under AgX, never clips flat white!)
     m_glow = mat("LampGlow", (1.0, 0.74, 0.38), rough=0.14, em=(1.0, 0.70, 0.34), em_s=3.2)
 
-    cyl("Base", 0.34, 0.24, 0.28, 8, m_iron, loc=(0, 0, 0.14), smooth=False, bevel=0.03)
-    torus("BaseRing", 0.25, 0.045, 16, 8, m_brass, loc=(0, 0, 0.30))
-    cyl("Post", 0.11, 0.075, 3.1, 10, m_iron, loc=(0, 0, 1.85), bevel=0.01)
-    torus("MidRing", 0.12, 0.035, 14, 8, m_brass, loc=(0, 0, 2.55))
+    cyl("Base", 0.34, 0.24, 0.28, 10, m_iron, loc=(0, 0, 0.14), smooth=False, bevel=0.03)
+    torus("BaseRing", 0.25, 0.045, 18, 8, m_brass, loc=(0, 0, 0.30))
+    cyl("Post", 0.11, 0.075, 3.1, 12, m_iron, loc=(0, 0, 1.85), bevel=0.01)
+    torus("MidRing", 0.12, 0.035, 16, 8, m_brass, loc=(0, 0, 2.55))
 
     bm = bmesh.new()
     segs = 14
@@ -189,27 +226,26 @@ def build_pendant_lamp_post():
             bm.faces.new((rings[i][s], rings[i][sn], rings[i + 1][sn], rings[i + 1][s]))
     add_bm("CrookArm", bm, m_iron, smooth=True)
 
-    cyl("ShadeCap", 0.36, 0.10, 0.22, 12, m_brass, loc=(0.84, 0, 3.22), bevel=0.02)
+    cyl("ShadeCap", 0.36, 0.10, 0.22, 14, m_brass, loc=(0.84, 0, 3.22), bevel=0.02)
     sphere("LanternGlobe", (0.24, 0.24, 0.28), m_glow, loc=(0.84, 0, 2.94), u=14, v=10, subsurf=1)
-    torus("LanternRim", 0.26, 0.025, 16, 8, m_brass, loc=(0.84, 0, 2.86))
+    torus("LanternRim", 0.26, 0.025, 18, 8, m_brass, loc=(0.84, 0, 2.86))
     cyl("BottomFinial", 0.08, 0.015, 0.16, 8, m_brass, loc=(0.84, 0, 2.60), bevel=0.01)
     save("pendant_lamp_post.glb")
 
 
 def build_pip_diorama_lantern():
-    """Ornate heirloom brass ember lantern sitting beside Pip in the Character Select Diorama."""
     clear()
     m_brass = mat("PipLanBrass", (0.82, 0.58, 0.20), rough=0.24, metal=0.90)
     m_stone = mat("PipLanCoaster", (0.64, 0.58, 0.48), rough=0.68)
     m_glow = mat("PipLanGlow", (1.0, 0.72, 0.30), rough=0.10, em=(1.0, 0.68, 0.24), em_s=3.6)
 
-    cyl("Coaster", 0.34, 0.32, 0.08, 10, m_stone, loc=(0, 0, 0.04), smooth=False, bevel=0.015)
-    cyl("LanBase", 0.22, 0.19, 0.09, 8, m_brass, loc=(0, 0, 0.12), smooth=False, bevel=0.012)
+    cyl("Coaster", 0.34, 0.32, 0.08, 12, m_stone, loc=(0, 0, 0.04), smooth=False, bevel=0.015)
+    cyl("LanBase", 0.22, 0.19, 0.09, 10, m_brass, loc=(0, 0, 0.12), smooth=False, bevel=0.012)
     sphere("EmberCore", (0.145, 0.145, 0.18), m_glow, loc=(0, 0, 0.33), u=12, v=10)
     for i in range(4):
         a = i * math.pi * 0.5 + math.pi * 0.25
         cyl(f"Strut_{i}", 0.018, 0.018, 0.36, 6, m_brass, loc=(0.175 * math.cos(a), 0.175 * math.sin(a), 0.33), bevel=0.004)
-    cyl("LanCap", 0.25, 0.08, 0.16, 8, m_brass, loc=(0, 0, 0.57), smooth=False, bevel=0.015)
+    cyl("LanCap", 0.25, 0.08, 0.16, 10, m_brass, loc=(0, 0, 0.57), smooth=False, bevel=0.015)
     torus("HandleRing", 0.085, 0.018, 16, 8, m_brass, loc=(0, 0, 0.71), rot=(math.radians(90), 0, 0))
     save("pip_diorama_lantern.glb")
 
@@ -222,9 +258,9 @@ def build_potted_fern():
     m_leaf_a = mat("FernLeafA", (0.11, 0.42, 0.16), rough=0.88)
     m_leaf_b = mat("FernLeafB", (0.18, 0.54, 0.20), rough=0.86)
 
-    cyl("PotBase", 0.42, 0.58, 0.72, 12, m_pot, loc=(0, 0, 0.36), smooth=False, bevel=0.03)
-    torus("PotLip", 0.59, 0.075, 16, 8, m_pot, loc=(0, 0, 0.72))
-    torus("PotBand", 0.53, 0.030, 16, 8, m_rim, loc=(0, 0, 0.52))
+    cyl("PotBase", 0.42, 0.58, 0.72, 14, m_pot, loc=(0, 0, 0.36), smooth=False, bevel=0.03)
+    torus("PotLip", 0.59, 0.075, 18, 8, m_pot, loc=(0, 0, 0.72))
+    torus("PotBand", 0.53, 0.030, 18, 8, m_rim, loc=(0, 0, 0.52))
     cyl("Soil", 0.52, 0.52, 0.08, 12, m_soil, loc=(0, 0, 0.68), bevel=0.01)
 
     for idx in range(14):
@@ -254,25 +290,49 @@ def build_potted_fern():
 
 
 def build_garden_tree_v3():
-    """Overhauled organic Ghibli Conservatory Bonsai Tree: lumpy foliage clusters + alpha-scissor LeafCards!"""
+    """Astro-Bot x Ghibli Conservatory Tree: LeafCards + coral-pink & sunlit-gold blossoms + fluted twisted roots + fluted terracotta planter!"""
     clear()
-    m_stone = mat("PlanterStone", (0.64, 0.58, 0.48), rough=0.60)
-    m_terra = mat("PlanterTerra", (0.56, 0.20, 0.11), rough=0.54)
-    m_gold = mat("PlanterGold", (0.78, 0.56, 0.16), rough=0.26, metal=0.86)
+    m_stone = mat("PlanterStone", (0.66, 0.60, 0.50), rough=0.60)
+    m_terra = mat("PlanterTerra", (0.58, 0.21, 0.11), rough=0.52)
+    m_gold = mat("PlanterBrass", (0.82, 0.58, 0.18), rough=0.24, metal=0.90)
+    m_soil = mat("PlanterSoil", (0.16, 0.10, 0.06), rough=0.92)
     m_bark = mat("TreeBarkV3", (0.26, 0.14, 0.08), rough=0.78)
     m_l1 = mat("CanopyDeep", (0.09, 0.34, 0.14), rough=0.92)
     m_l2 = mat("CanopyMid", (0.16, 0.48, 0.18), rough=0.90)
     m_l3 = mat("CanopySun", (0.28, 0.60, 0.21), rough=0.88)
+    # Preserved LeafCard alpha-scissor material!
     m_card = mat("LeafCard", (0.22, 0.54, 0.20), rough=0.92)
-    m_blossom = mat("BlossomWarm", (0.98, 0.76, 0.42), rough=0.35, em=(0.95, 0.68, 0.24), em_s=0.65)
+    # Non-emissive / low-emissive (<0.45) so world_helper keeps vibrant coral-pink & sunlit-gold hues!
+    m_coral = mat("BlossomCoralPink", (0.98, 0.42, 0.52), rough=0.42, coat=0.20)
+    m_sun_bloom = mat("BlossomSunGold", (1.0, 0.80, 0.24), rough=0.38, em=(0.98, 0.72, 0.18), em_s=0.30)
     m_lantern = mat("FairyLanternGlow", (1.0, 0.74, 0.34), rough=0.14, em=(1.0, 0.70, 0.28), em_s=3.2)
 
-    cyl("PlanterBase", 0.88, 0.96, 0.34, 8, m_stone, loc=(0, 0, 0.17), smooth=False, bevel=0.03)
-    cyl("PlanterMid", 0.78, 0.84, 0.55, 8, m_terra, loc=(0, 0, 0.58), smooth=False, bevel=0.03)
-    torus("PlanterRim", 0.86, 0.07, 16, 8, m_gold, loc=(0, 0, 0.88))
+    # Carved fluted terracotta planter with brass rim
+    cyl("PlanterBase", 0.90, 0.98, 0.28, 16, m_stone, loc=(0, 0, 0.14), smooth=False, bevel=0.03)
+    cyl("PlanterMid", 0.78, 0.86, 0.60, 16, m_terra, loc=(0, 0, 0.56), smooth=False, bevel=0.03)
+    for fi in range(12):
+        fa = fi * math.tau / 12.0
+        cyl(f"PlanterFlute_{fi}", 0.065, 0.075, 0.52, 6, m_terra,
+            loc=(0.83 * math.cos(fa), 0.83 * math.sin(fa), 0.56), bevel=0.012)
+    torus("PlanterRim", 0.88, 0.072, 24, 8, m_gold, loc=(0, 0, 0.88))
+    torus("PlanterSubBand", 0.80, 0.035, 24, 6, m_gold, loc=(0, 0, 0.32))
+    cyl("PlanterSoilDisc", 0.80, 0.80, 0.06, 16, m_soil, loc=(0, 0, 0.86), bevel=0.01)
 
-    cyl("TrunkLow", 0.32, 0.22, 1.35, 10, m_bark, loc=(0, 0, 1.45), rot=(0.10, -0.08, 0), bevel=0.02)
-    cyl("TrunkMid", 0.22, 0.15, 1.25, 10, m_bark, loc=(-0.08, 0.08, 2.55), rot=(-0.12, 0.14, 0), bevel=0.02)
+    # Sculpted curved trunk + 5 fluted twisted bark roots gripping the planter soil!
+    trunk_pts = [Vector((0.0, 0.0, 0.86)), Vector((0.04, -0.02, 1.45)), Vector((-0.06, 0.06, 2.25)), Vector((-0.02, 0.04, 3.05))]
+    sweep_tube("CurvedTrunk", trunk_pts, [0.30, 0.24, 0.19, 0.14], m_bark, segs=12)
+    for ri in range(5):
+        ra = ri * math.tau / 5.0 + 0.2
+        ca, sa = math.cos(ra), math.sin(ra)
+        tx_p, ty_p = -sa, ca
+        r_pts = [
+            Vector((0.18 * ca, 0.18 * sa, 1.32)),
+            Vector((0.36 * ca + 0.10 * tx_p, 0.36 * sa + 0.10 * ty_p, 1.06)),
+            Vector((0.58 * ca + 0.04 * tx_p, 0.58 * sa + 0.04 * ty_p, 0.91)),
+            Vector((0.72 * ca - 0.04 * tx_p, 0.72 * sa - 0.04 * ty_p, 0.86)),
+        ]
+        sweep_tube(f"TwistedRoot_{ri}", r_pts, [0.11, 0.085, 0.055, 0.025], m_bark, segs=7)
+
     limbs = [
         ((-0.65, 0.20, 2.75), (0.15, -0.78, 0.2), 1.35),
         ((0.68, -0.18, 2.65), (-0.12, 0.82, -0.15), 1.30),
@@ -282,7 +342,6 @@ def build_garden_tree_v3():
     for idx, (loc, rot, ln) in enumerate(limbs):
         cyl(f"Limb{idx}", 0.13, 0.06, ln, 8, m_bark, loc=loc, rot=rot, bevel=0.01)
 
-    # Organic sculpted bumpy foliage clumps (matte velvety, zero smooth plastic pickle balls!)
     foliage = [
         ((0.0, 0.0, 3.85), (1.05, 0.98, 0.68), m_l2),
         ((0.28, 0.24, 4.22), (0.78, 0.74, 0.54), m_l3),
@@ -298,7 +357,7 @@ def build_garden_tree_v3():
     for i, (loc, rad, m_f) in enumerate(foliage):
         lumpy_foliage_blob(f"LeafClump{i}", rad, m_f, loc=loc, seed=i + 3)
 
-    # 72 Outward-Facing Painted Alpha-Scissor Leaf Cards creating lush layered Ghibli canopy volume!
+    # 72 Outward-Facing Painted Alpha-Scissor Leaf Cards
     rng = random.Random(2026)
     bm_cards = bmesh.new()
     uv_layer = bm_cards.loops.layers.uv.new("UVMap")
@@ -316,7 +375,6 @@ def build_garden_tree_v3():
         cr, sr = math.cos(roll), math.sin(roll)
         r_rot = right * cr + up * sr
         u_rot = -right * sr + up * cr
-        # Slight V-fold quad for 3D botanical silhouette from every camera angle!
         v0 = bm_cards.verts.new(center - r_rot * sz - u_rot * sz)
         v1 = bm_cards.verts.new(center + r_rot * sz - u_rot * sz)
         v2 = bm_cards.verts.new(center + r_rot * sz + u_rot * sz + n_dir * (sz * 0.18))
@@ -327,9 +385,23 @@ def build_garden_tree_v3():
             loop[uv_layer].uv = uv
     add_bm("SilhouetteLeafCards", bm_cards, m_card, smooth=True)
 
-    # Warm glowing blossom clusters & 2 hanging brass fairy lanterns
-    for i, p in enumerate([(-1.3, 0.4, 3.5), (1.2, -0.2, 3.4), (0.1, 0.8, 3.8), (-0.4, -0.8, 3.6), (0.3, 0.1, 4.4)]):
-        sphere(f"Blossom{i}", (0.15, 0.15, 0.12), m_blossom, loc=p, u=8, v=6, subsurf=0)
+    # Vibrant Astro-Bot coral-pink & sunlit-gold 5-petal blossom clusters nestled across the canopy!
+    blossom_spots = [
+        (-1.35, 0.45, 3.55), (1.28, -0.22, 3.45), (0.18, 0.96, 3.82),
+        (-0.48, -0.88, 3.65), (0.42, 0.25, 4.46), (-0.82, 0.72, 3.72),
+        (0.92, 0.58, 3.78), (-1.58, 0.55, 3.18), (1.55, -0.05, 3.35),
+    ]
+    for bi, (bx, by, bz) in enumerate(blossom_spots):
+        m_pet = m_coral if bi % 2 == 0 else m_sun_bloom
+        m_ctr = m_sun_bloom if bi % 2 == 0 else m_coral
+        sphere(f"BlossomCtr_{bi}", (0.065, 0.065, 0.055), m_ctr, loc=(bx, by, bz), u=8, v=6, subsurf=0)
+        for pi in range(5):
+            pa = pi * math.tau / 5.0 + bi * 0.4
+            sphere(f"BlossomPet_{bi}_{pi}", (0.075, 0.055, 0.045), m_pet,
+                   loc=(bx + 0.095 * math.cos(pa), by + 0.095 * math.sin(pa), bz - 0.01),
+                   rot=(0, 0, pa), u=8, v=6, subsurf=0)
+
+    # 2 Hanging brass fairy lanterns
     for i, lp in enumerate([(-1.15, 0.25, 2.42), (1.12, -0.24, 2.34)]):
         cyl(f"Cord{i}", 0.015, 0.015, 0.42, 6, m_gold, loc=(lp[0], lp[1], lp[2] + 0.22), bevel=0.0)
         sphere(f"FairyOrb{i}", (0.14, 0.14, 0.18), m_lantern, loc=lp, u=10, v=8, subsurf=0)
@@ -381,50 +453,133 @@ def build_torii_sky_gate():
 
 
 def build_rose_window_arch():
+    """Ornate Gothic Cathedral Rose Window: gilded-brass & carved-stone rings, 12 trefoil stone tracery spokes,
+    multi-ring faceted ruby/gold/amethyst/sapphire stained-glass petals, and pointed finial spires!"""
     clear()
-    m_marble = mat("RoseMarble", (0.86, 0.80, 0.90), rough=0.30, coat=0.45)
-    m_gold = mat("RoseGold", (0.86, 0.64, 0.22), rough=0.22, metal=0.90)
-    m_lead = mat("RoseLead", (0.18, 0.14, 0.22), rough=0.38, metal=0.80)
-    # Jewel-toned stained glass (HDR < 1.8 so zero flat pink/white octagons!)
-    m_glass_a = mat("RoseRuby", (0.82, 0.26, 0.50), rough=0.14, em=(0.78, 0.22, 0.44), em_s=1.40, coat=0.9)
-    m_glass_b = mat("RoseAmber", (0.94, 0.58, 0.22), rough=0.14, em=(0.90, 0.52, 0.18), em_s=1.50, coat=0.9)
+    m_marble = mat("RoseMarble", (0.86, 0.80, 0.90), rough=0.28, coat=0.45)
+    m_gold = mat("RoseGold", (0.88, 0.66, 0.22), rough=0.22, metal=0.92)
+    m_lead = mat("RoseLead", (0.16, 0.13, 0.20), rough=0.38, metal=0.82)
+    # All jewel-glass names contain 'rose'/'ruby'/'sapph'/'ameth' so world_helper applies __jewel_glass_v2__!
+    m_ruby = mat("RoseRubyGlass", (0.88, 0.16, 0.38), rough=0.12, em=(0.86, 0.14, 0.36), em_s=1.05, coat=0.95)
+    m_gold_glass = mat("RoseGoldGlass", (0.98, 0.68, 0.16), rough=0.12, em=(0.98, 0.62, 0.14), em_s=1.10, coat=0.95)
+    m_ameth = mat("RoseAmethGlass", (0.64, 0.24, 0.92), rough=0.12, em=(0.58, 0.20, 0.88), em_s=1.05, coat=0.95)
+    m_sapph = mat("RoseSapphGlass", (0.20, 0.54, 0.98), rough=0.12, em=(0.16, 0.48, 0.96), em_s=1.05, coat=0.95)
 
-    torus("OuterStone", 8.2, 0.72, 48, 10, m_marble, rot=(math.radians(90), 0, 0))
-    torus("InnerGold", 7.4, 0.26, 48, 8, m_gold, rot=(math.radians(90), 0, 0))
-    torus("MidGold", 4.2, 0.20, 36, 8, m_gold, rot=(math.radians(90), 0, 0))
-    torus("CenterRing", 1.5, 0.18, 24, 8, m_gold, rot=(math.radians(90), 0, 0))
+    # Sculpted layered gilded-brass & carved-stone outer rings
+    torus("OuterStone", 8.35, 0.66, 48, 12, m_marble, rot=(math.radians(90), 0, 0))
+    torus("OuterStoneMold", 9.02, 0.24, 48, 8, m_marble, rot=(math.radians(90), 0, 0))
+    torus("OuterGoldRing", 7.62, 0.24, 48, 8, m_gold, rot=(math.radians(90), 0, 0))
+    torus("MidStoneRing", 4.55, 0.22, 36, 8, m_marble, rot=(math.radians(90), 0, 0))
+    torus("MidGoldRing", 4.25, 0.14, 36, 8, m_gold, rot=(math.radians(90), 0, 0))
+    torus("InnerGoldRing", 1.75, 0.16, 28, 8, m_gold, rot=(math.radians(90), 0, 0))
+    # Central rose jewel medallion
+    cyl("CenterJewel", 1.55, 1.55, 0.16, 12, m_ruby, rot=(math.radians(90), 0, 0), smooth=False, bevel=0.02)
+    torus("CenterBossGold", 0.58, 0.11, 18, 6, m_gold, rot=(math.radians(90), 0, 0))
+
+    # 12 Trefoil stone tracery spokes & multi-ring faceted jewel petals!
+    outer_glass = [m_ruby, m_gold_glass, m_ameth, m_sapph]
     for i in range(12):
-        a = i * math.pi / 6.0
-        box(f"Spoke{i}", (0.24, 0.32, 7.4), m_gold, loc=(3.8 * math.cos(a), 0, 3.8 * math.sin(a)),
-            rot=(0, math.pi * 0.5 - a, 0), bevel=0.02)
-        px, pz = 5.7 * math.cos(a + 0.26), 5.7 * math.sin(a + 0.26)
-        # 16-sided circular stained-glass medallion with dark lead rim & crossed mullions!
-        cyl(f"Petal{i}", 0.90, 0.90, 0.14, 16, m_glass_a if i % 2 == 0 else m_glass_b,
-            loc=(px, 0, pz), rot=(math.radians(90), 0, 0), smooth=True, bevel=0.01)
-        torus(f"PetalLead_{i}", 0.92, 0.08, 20, 6, m_lead, loc=(px, 0, pz), rot=(math.radians(90), 0, 0))
-        box(f"PetalCrossA_{i}", (1.75, 0.20, 0.08), m_lead, loc=(px, 0, pz), rot=(0, a, 0))
-        box(f"PetalCrossB_{i}", (0.08, 0.20, 1.75), m_lead, loc=(px, 0, pz), rot=(0, a, 0))
+        a = i * math.tau / 12.0
+        ca, sa = math.cos(a), math.sin(a)
+        # Carved stone tracery spoke with gilded inner rib
+        box(f"StoneSpoke_{i}", (0.24, 0.34, 6.2), m_marble, loc=(4.65 * ca, 0, 4.65 * sa), rot=(0, math.pi * 0.5 - a, 0), bevel=0.03)
+        box(f"GoldSpoke_{i}", (0.10, 0.42, 6.1), m_gold, loc=(4.65 * ca, 0, 4.65 * sa), rot=(0, math.pi * 0.5 - a, 0), bevel=0.01)
+
+        # Trefoil Gothic tracery arch cusps at outer end of each spoke bay
+        am = a + math.tau / 24.0
+        cam, sam = math.cos(am), math.sin(am)
+        for tref_off in (-0.28, 0.28):
+            ta = am + tref_off * 0.35
+            torus(f"TrefoilLobe_{i}_{tref_off}", 0.52, 0.08, 16, 6, m_marble,
+                  loc=(6.85 * math.cos(ta), 0, 6.85 * math.sin(ta)), rot=(math.radians(90), 0, 0))
+        torus(f"TrefoilCrown_{i}", 0.48, 0.08, 16, 6, m_gold,
+              loc=(7.15 * cam, 0, 7.15 * sam), rot=(math.radians(90), 0, 0))
+
+        # Inner ring: 12 faceted diamond/lancet stained-glass petals
+        ir = 2.95
+        bm_in = bmesh.new()
+        p0 = bm_in.verts.new((0, 0, -0.95))
+        p1 = bm_in.verts.new((0.52, 0, 0.15))
+        p2 = bm_in.verts.new((0, 0, 1.05))
+        p3 = bm_in.verts.new((-0.52, 0, 0.15))
+        bm_in.faces.new((p0, p1, p2, p3))
+        bmesh.ops.solidify(bm_in, geom=bm_in.faces[:], thickness=0.12)
+        add_bm(f"InnerPetal_{i}", bm_in, m_sapph if i % 2 == 0 else m_gold_glass,
+               loc=(ir * cam, -0.06, ir * sam), rot=(0, math.pi * 0.5 - am, 0), smooth=False, bevel=0.015)
+
+        # Outer ring: 12 faceted multi-lobed stained-glass rose petals framed in dark lead
+        px, pz = 5.88 * cam, 5.88 * sam
+        cyl(f"OuterPetal_{i}", 1.10, 1.10, 0.14, 8, outer_glass[i % 4],
+            loc=(px, 0, pz), rot=(math.radians(90), 0, am), smooth=False, bevel=0.02)
+        torus(f"OuterPetalLead_{i}", 1.12, 0.085, 16, 6, m_lead, loc=(px, 0, pz), rot=(math.radians(90), 0, 0))
+        # Delicate lead quatrefoil tracery bars inside each outer medallion
+        box(f"QuatBarA_{i}", (2.15, 0.20, 0.08), m_lead, loc=(px, 0, pz), rot=(0, am, 0))
+        box(f"QuatBarB_{i}", (0.08, 0.20, 2.15), m_lead, loc=(px, 0, pz), rot=(0, am, 0))
+
+    # Gothic pointed flanking buttress piers & delicate pointed finial spires!
+    for sx in (-9.65, 9.65):
+        box(f"ButtressPier_{sx}", (1.15, 1.25, 12.5), m_marble, loc=(sx, 0, -2.5), bevel=0.06)
+        box(f"ButtressGoldBand_{sx}", (1.28, 1.38, 0.35), m_gold, loc=(sx, 0, 3.65), bevel=0.03)
+        cyl(f"FinialSpire_{sx}", 0.56, 0.04, 4.2, 6, m_marble, loc=(sx, 0, 5.95), bevel=0.02)
+        cyl(f"FinialGoldTip_{sx}", 0.16, 0.01, 0.95, 6, m_gold, loc=(sx, 0, 8.35), bevel=0.01)
+    # Central crown Gothic finial spire atop the rose arch
+    cyl("CrownPedestal", 0.72, 0.56, 1.1, 8, m_marble, loc=(0, 0, 9.65), bevel=0.04)
+    cyl("CrownSpire", 0.48, 0.03, 3.4, 6, m_gold, loc=(0, 0, 11.85), bevel=0.02)
     save("rose_window_arch.glb")
 
 
 def build_floating_candle_cluster():
+    """Multi-height sculpted tapered beeswax candles + wax drips + ornate brass saucers + teardrop glowing flames!"""
     clear()
-    # Warm honey-beeswax candle wax (never bleaches white under lights!)
-    m_wax = mat("CandleWax", (0.86, 0.72, 0.50), rough=0.52)
-    m_flame = mat("CandleFlameGlow", (1.0, 0.64, 0.22), rough=0.12, em=(1.0, 0.58, 0.16), em_s=1.95)
-    m_brass = mat("CandleDish", (0.78, 0.56, 0.18), rough=0.25, metal=0.88)
+    m_wax = mat("CandleWax", (0.88, 0.75, 0.52), rough=0.46, coat=0.15)
+    m_flame = mat("CandleFlameGlow", (1.0, 0.64, 0.22), rough=0.10, em=(1.0, 0.58, 0.16), em_s=2.0)
+    m_brass = mat("CandleDish", (0.82, 0.58, 0.18), rough=0.22, metal=0.90)
 
     specs = [
-        ((0.0, 0.0, 0.0), 0.13, 0.78),
-        ((-0.34, 0.22, 0.18), 0.10, 0.56),
-        ((0.32, 0.18, -0.14), 0.11, 0.66),
-        ((0.12, -0.34, 0.28), 0.095, 0.50),
-        ((-0.24, -0.26, -0.22), 0.10, 0.60),
+        ((0.0, 0.0, 0.06), 0.135, 0.86),
+        ((-0.35, 0.22, 0.20), 0.105, 0.58),
+        ((0.34, 0.18, -0.14), 0.115, 0.70),
+        ((0.14, -0.35, 0.28), 0.095, 0.50),
+        ((-0.26, -0.28, -0.22), 0.105, 0.64),
+        ((-0.05, 0.38, -0.06), 0.088, 0.44),
+        ((0.40, -0.22, 0.12), 0.092, 0.54),
     ]
     for i, ((x, y, z), rad, h) in enumerate(specs):
-        cyl(f"Dish{i}", rad * 1.5, rad * 1.2, 0.06, 12, m_brass, loc=(x, y, z - h * 0.5), bevel=0.01)
-        cyl(f"Wax{i}", rad, rad * 0.94, h, 12, m_wax, loc=(x, y, z), bevel=0.02)
-        sphere(f"Flame{i}", (rad * 0.45, rad * 0.45, rad * 1.05), m_flame, loc=(x, y, z + h * 0.5 + rad * 0.95), u=8, v=6, subsurf=0)
+        base_z = z - h * 0.5
+        top_z = z + h * 0.5
+        # Ornate turned brass saucer base with flared rim & finger loop handle
+        cyl(f"SaucerFoot_{i}", rad * 1.15, rad * 0.85, 0.045, 14, m_brass, loc=(x, y, base_z - 0.025), bevel=0.008)
+        cyl(f"SaucerBowl_{i}", rad * 1.15, rad * 1.75, 0.055, 16, m_brass, loc=(x, y, base_z + 0.02), bevel=0.01)
+        torus(f"SaucerRim_{i}", rad * 1.74, 0.018, 18, 6, m_brass, loc=(x, y, base_z + 0.045))
+        torus(f"SaucerHandle_{i}", 0.042, 0.010, 12, 6, m_brass,
+              loc=(x + rad * 1.85, y, base_z + 0.03), rot=(math.radians(90), 0, 0))
+
+        # Sculpted tapered beeswax pillar with gently melted top rim
+        cyl(f"Wax_{i}", rad, rad * 0.90, h, 14, m_wax, loc=(x, y, z), bevel=0.02)
+        torus(f"WaxPoolRim_{i}", rad * 0.82, 0.024, 16, 6, m_wax, loc=(x, y, top_z - 0.01))
+
+        # Sculpted wax drips running down the candle sides
+        for di in range(3):
+            da = di * math.tau / 3.0 + i * 1.1
+            drip_len = 0.14 + ((i + di) % 3) * 0.09
+            r_d = rad * 0.91
+            drip_pts = [
+                Vector((x + r_d * math.cos(da), y + r_d * math.sin(da), top_z - 0.02)),
+                Vector((x + (r_d + 0.012) * math.cos(da), y + (r_d + 0.012) * math.sin(da), top_z - drip_len * 0.5)),
+                Vector((x + (r_d + 0.016) * math.cos(da), y + (r_d + 0.016) * math.sin(da), top_z - drip_len)),
+            ]
+            sweep_tube(f"WaxDrip_{i}_{di}", drip_pts, [0.020, 0.015, 0.024], m_wax, segs=6)
+
+        # Sculpted teardrop glowing flame!
+        bm_fl = bmesh.new()
+        bmesh.ops.create_uvsphere(bm_fl, u_segments=10, v_segments=8, radius=1.0)
+        for v in bm_fl.verts:
+            t_z = (v.co.z + 1.0) * 0.5  # 0 bottom -> 1 tip
+            pinch = (1.0 - t_z) ** 0.55 if t_z > 0.25 else 1.0
+            v.co.x *= rad * 0.44 * pinch
+            v.co.y *= rad * 0.44 * pinch
+            v.co.z *= rad * 1.18
+        add_bm(f"TeardropFlame_{i}", bm_fl, m_flame, loc=(x, y, top_z + rad * 1.05), smooth=True)
     save("floating_candle_cluster.glb")
 
 

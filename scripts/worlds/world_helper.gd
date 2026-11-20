@@ -15,6 +15,7 @@ static var _leaf_card_shader: Shader
 static var _pip_face_shader: Shader
 static var _silhouette_shader: Shader
 static var _cloud_puff_shader: Shader
+static var _grass_shader: Shader
 static var _halo_quad: QuadMesh
 
 
@@ -31,6 +32,7 @@ static func clear_caches() -> void:
 	_pip_face_shader = null
 	_silhouette_shader = null
 	_cloud_puff_shader = null
+	_grass_shader = null
 	_halo_quad = null
 
 
@@ -135,6 +137,12 @@ static func _get_cloud_puff_shader() -> Shader:
 	return _cloud_puff_shader
 
 
+static func _get_grass_shader() -> Shader:
+	if not _grass_shader:
+		_grass_shader = load("res://assets/shaders/lush_grass.gdshader")
+	return _grass_shader
+
+
 static func disable_shadows(root: Node) -> void:
 	if root is GeometryInstance3D:
 		(root as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -221,11 +229,41 @@ static func enhance_stylized_materials(root: Node, top_col: Color, top_blend: fl
 					var local_macro := 0.14
 					var local_grain := 0.012
 					var local_wet := wetness
+					var is_flower_petal := mname.contains("petal") or mname.contains("blossom") or mname.contains("pollen") or mname.contains("bloom") or mname.contains("flower")
+					var is_delicate_col := is_flower_petal or mname.contains("ribbon") or mname.contains("tassel") or mname.contains("flame") or mname.contains("ember") or mname.contains("furnace") or mname.contains("bookspine") or mname.contains("jelly")
+					var is_jewel_tint := mname.contains("sapph") or mname.contains("rose") or mname.contains("ruby") or mname.contains("ameth") or mname.contains("aurora")
+
+					if is_jewel_tint:
+						mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+						var jkey2 := "__jewel_glass_v3__|%s|%.2f" % [sm.albedo_color.to_html(false), sm.emission_energy_multiplier]
+						var jmat2: StandardMaterial3D
+						if _mat_cache.has(jkey2):
+							jmat2 = _mat_cache[jkey2]
+						else:
+							jmat2 = StandardMaterial3D.new()
+							jmat2.albedo_color = Color(sm.albedo_color.r * 0.34, sm.albedo_color.g * 0.34, sm.albedo_color.b * 0.34, 0.88)
+							jmat2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+							jmat2.roughness = 0.12
+							jmat2.metallic = 0.10
+							jmat2.emission_enabled = true
+							jmat2.emission = sm.emission if sm.emission_enabled else sm.albedo_color
+							jmat2.emission_energy_multiplier = clampf(maxf(sm.emission_energy_multiplier, 0.52), 0.50, 1.15)
+							_mat_cache[jkey2] = jmat2
+						mi.set_surface_override_material(s, jmat2)
+						continue
 
 					if mname.contains("glass") or mname.contains("stained") or mname.contains("pane") or mname.contains("crystal"):
 						chosen_tex = ""
 						local_rough = 0.12
 						mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					elif is_flower_petal:
+						chosen_tex = ""
+						local_norm = 0.0
+						local_rough = maxf(sm.roughness, 0.52)
+						local_sheen = 0.34
+						local_macro = 0.05
+						local_grain = 0.004
+						local_wet = 0.0
 					elif mname.contains("ceramicroof"):
 						chosen_tex = "terracotta_tile"
 						local_norm = 0.30
@@ -264,7 +302,7 @@ static func enhance_stylized_materials(root: Node, top_col: Color, top_blend: fl
 						local_norm = 0.42
 						local_blend = 0.54
 
-					var eff_top := top_blend if (sm.metallic < 0.5 and chosen_tex != "" and not mname.contains("ceramicroof")) else 0.0
+					var eff_top := top_blend if (sm.metallic < 0.5 and chosen_tex != "" and not mname.contains("ceramicroof") and not is_delicate_col) else 0.0
 					var key := "%s|%.2f|%.2f|%s|%s|%.2f|%.2f|%s|%.2f|%.2f|%.2f|%.2f" % [
 						sm.albedo_color.to_html(false), local_rough, sm.metallic,
 						chosen_tex, top_col.to_html(false), eff_top, rim_strength,
@@ -491,12 +529,90 @@ static func add_warm_light_pool(parent: Node3D, pos: Vector3, col: Color, energy
 	return omni
 
 
+static func _extract_baked_mesh(path: String) -> ArrayMesh:
+	var key := "__baked__" + path
+	if _mesh_cache.has(key):
+		return _mesh_cache[key] as ArrayMesh
+	var inst := load_glb(path)
+	var out := ArrayMesh.new()
+	_bake_meshes_rec(inst, Transform3D.IDENTITY, out)
+	inst.free()
+	_mesh_cache[key] = out
+	return out
+
+
+static func _bake_meshes_rec(n: Node, parent_xform: Transform3D, out: ArrayMesh) -> void:
+	var xform := parent_xform
+	if n is Node3D:
+		xform = parent_xform * (n as Node3D).transform
+	if n is MeshInstance3D:
+		var mi := n as MeshInstance3D
+		if mi.mesh:
+			var nrm_basis := xform.basis.inverse().transposed()
+			for s in range(mi.mesh.get_surface_count()):
+				var mdt := MeshDataTool.new()
+				var err := mdt.create_from_surface(mi.mesh, s)
+				if err == OK:
+					for vi in range(mdt.get_vertex_count()):
+						mdt.set_vertex(vi, xform * mdt.get_vertex(vi))
+						mdt.set_vertex_normal(vi, (nrm_basis * mdt.get_vertex_normal(vi)).normalized())
+					mdt.commit_to_surface(out)
+					var surf_idx := out.get_surface_count() - 1
+					var mat := mi.get_active_material(s)
+					if mat:
+						out.surface_set_material(surf_idx, mat)
+	for ch in n.get_children():
+		_bake_meshes_rec(ch, xform, out)
+
+
+static func _apply_lush_grass_surfaces(mesh: ArrayMesh, is_wildflower: bool = false) -> void:
+	var applied_key := "__lush_applied__%s" % str(mesh.get_instance_id())
+	if _mat_cache.has(applied_key):
+		return
+	for s in range(mesh.get_surface_count()):
+		var src_mat := mesh.surface_get_material(s)
+		var mname := src_mat.resource_name.to_lower() if src_mat else ""
+		var base_col := Color(0.20, 0.54, 0.20)
+		var rough := 0.88
+		if src_mat is StandardMaterial3D:
+			var sm := src_mat as StandardMaterial3D
+			base_col = sm.albedo_color
+			rough = sm.roughness
+
+		var is_foliage := mname.contains("grass") or mname.contains("clover") or mname.contains("stem") or mname.contains("leaf") or mname == ""
+		var key := "__lush_grass__|%s|%s|%s" % [mname, base_col.to_html(false), "wf" if is_wildflower else "gr"]
+		var sh: ShaderMaterial
+		if _mat_cache.has(key):
+			sh = _mat_cache[key] as ShaderMaterial
+		else:
+			sh = ShaderMaterial.new()
+			sh.shader = _get_grass_shader()
+			if is_foliage:
+				var is_clover := mname.contains("clover")
+				sh.set_shader_parameter("root_color", Color(0.06, 0.28, 0.13) if is_clover else Color(0.08, 0.35, 0.14))
+				sh.set_shader_parameter("tip_color", Color(0.26, 0.66, 0.24) if is_clover else Color(0.46, 0.82, 0.22))
+				sh.set_shader_parameter("roughness_val", 0.88)
+				sh.set_shader_parameter("rim_color", Color(1.0, 0.94, 0.66))
+				sh.set_shader_parameter("rim_strength", 0.30)
+			else:
+				sh.set_shader_parameter("root_color", base_col.darkened(0.08))
+				sh.set_shader_parameter("tip_color", base_col.lightened(0.14))
+				sh.set_shader_parameter("roughness_val", maxf(rough, 0.55))
+				sh.set_shader_parameter("rim_color", Color(1.0, 0.96, 0.84))
+				sh.set_shader_parameter("rim_strength", 0.26)
+			sh.set_shader_parameter("wind_strength", 0.075 if is_wildflower else 0.088)
+			_mat_cache[key] = sh
+		mesh.surface_set_material(s, sh)
+	_mat_cache[applied_key] = true
+
+
 static func add_grass_tuft_rim(parent: Node3D, center: Vector3, inner_r: float, outer_r: float,
 		count: int = 44, seed_val: int = 101) -> MultiMeshInstance3D:
-	## Single batched MultiMeshInstance3D scattering stylized clover & buttercup tufts around lawn edges!
-	var mesh := _extract_first_mesh("res://assets/models/dressing/grass_tuft.glb")
-	if not mesh:
+	## Single batched MultiMeshInstance3D scattering interactive wind-swaying clover & buttercup tufts around lawn edges!
+	var mesh := _extract_baked_mesh("res://assets/models/dressing/grass_tuft.glb")
+	if mesh.get_surface_count() == 0:
 		return null
+	_apply_lush_grass_surfaces(mesh, false)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -517,25 +633,122 @@ static func add_grass_tuft_rim(parent: Node3D, center: Vector3, inner_r: float, 
 	mmi.visibility_range_end = 95.0
 	mmi.visibility_range_end_margin = 16.0
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	# Apply lush matte grass shader
-	var gkey := "__grass_tuft_mat__"
-	var sh: ShaderMaterial
-	if _mat_cache.has(gkey):
-		sh = _mat_cache[gkey]
-	else:
-		sh = ShaderMaterial.new()
-		sh.shader = _get_tactile_shader()
-		sh.set_shader_parameter("albedo_color", Color(0.20, 0.54, 0.21))
-		sh.set_shader_parameter("roughness_val", 0.92)
-		sh.set_shader_parameter("rim_color", Color(0.95, 0.90, 0.52))
-		sh.set_shader_parameter("rim_strength", 0.22)
-		sh.set_shader_parameter("macro_var_strength", 0.28)
-		sh.set_shader_parameter("grain_strength", 0.006)
-		sh.set_shader_parameter("plush_sheen", 0.30)
-		_mat_cache[gkey] = sh
-	mmi.material_override = sh
 	parent.add_child(mmi)
 	return mmi
+
+
+static func add_lush_grass_carpet(parent: Node3D, center: Vector3, max_radius: float,
+		count: int = 180, seed_val: int = 201, exclude_center_r: float = 0.0) -> MultiMeshInstance3D:
+	## Scatters rich golden-emerald wind-swaying grass_tuft.glb clusters across the full walkable lawn
+	## with Astro Bot player-bending lush_grass.gdshader!
+	var mesh := _extract_baked_mesh("res://assets/models/dressing/grass_tuft.glb")
+	if mesh.get_surface_count() == 0:
+		return null
+	_apply_lush_grass_surfaces(mesh, false)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = count
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	var r_min_sq := exclude_center_r * exclude_center_r
+	var r_max_sq := max_radius * max_radius
+	for i in range(count):
+		var ang := rng.randf_range(0.0, TAU)
+		var rad := sqrt(rng.randf_range(r_min_sq, r_max_sq))
+		var edge_t := clampf(rad / maxf(max_radius, 0.01), 0.0, 1.0)
+		var sc := lerpf(rng.randf_range(0.55, 0.90), rng.randf_range(0.88, 1.38), edge_t)
+		var b := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
+		b = b.rotated(Vector3.RIGHT, rng.randf_range(-0.08, 0.08)).scaled(Vector3(sc, sc * rng.randf_range(0.82, 1.24), sc))
+		var p := Vector3(cos(ang) * rad, 0.0, sin(ang) * rad)
+		mm.set_instance_transform(i, Transform3D(b, p))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.position = center
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.visibility_range_end = 95.0
+	mmi.visibility_range_end_margin = 16.0
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	parent.add_child(mmi)
+	return mmi
+
+
+static func add_wildflower_scatter(parent: Node3D, center: Vector3, inner_r: float, outer_r: float,
+		count: int = 18, seed_val: int = 301) -> MultiMeshInstance3D:
+	## Scatters colorful buttercup, daisy, pink-bloom & clover clusters while preserving every petal color!
+	var mesh := _extract_baked_mesh("res://assets/models/dressing/wildflower_cluster.glb")
+	if mesh.get_surface_count() == 0:
+		return null
+	_apply_lush_grass_surfaces(mesh, true)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = count
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	var r_min_sq := inner_r * inner_r
+	var r_max_sq := outer_r * outer_r
+	for i in range(count):
+		var ang := (float(i) / float(count)) * TAU + rng.randf_range(-0.24, 0.24)
+		var rad := sqrt(rng.randf_range(r_min_sq, r_max_sq))
+		var sc := rng.randf_range(0.85, 1.35)
+		var b := Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3(sc, sc * rng.randf_range(0.90, 1.20), sc))
+		var p := Vector3(cos(ang) * rad, 0.0, sin(ang) * rad)
+		mm.set_instance_transform(i, Transform3D(b, p))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.position = center
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.visibility_range_end = 90.0
+	mmi.visibility_range_end_margin = 16.0
+	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	parent.add_child(mmi)
+	return mmi
+
+
+static func add_mossy_stones(parent: Node3D, center: Vector3, radius: float,
+		count: int = 5, seed_val: int = 401, skip_front_z: bool = false) -> void:
+	## Scatters mossy_stone.glb boulders around terrace rims for Little Prince organic rock framing.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_val
+	var stone_style := {
+		"top": Color(0.18, 0.48, 0.20),
+		"top_blend": 0.24,
+		"rim": Color(1.0, 0.90, 0.62),
+		"rim_s": 0.24,
+		"shadow": Color(0.16, 0.24, 0.44),
+		"tex": "stone_mosaic",
+		"tex_scale": 0.45,
+		"tex_blend": 0.55,
+	}
+	for i in range(count):
+		var ang := (float(i) / float(count)) * TAU + rng.randf_range(-0.22, 0.22)
+		if skip_front_z and sin(ang) > 0.55 and absf(cos(ang)) < 0.65:
+			ang += PI * 0.45
+		var rad := rng.randf_range(radius * 0.94, radius * 1.04)
+		var pos := center + Vector3(cos(ang) * rad, -0.06, sin(ang) * rad)
+		var sc := rng.randf_range(0.78, 1.18)
+		var inst := load_glb("res://assets/models/dressing/mossy_stone.glb")
+		inst.position = pos
+		inst.rotation_degrees = Vector3(rng.randf_range(-4.0, 4.0), rng.randf_range(0.0, 360.0), rng.randf_range(-4.0, 4.0))
+		inst.scale = Vector3(sc, sc * rng.randf_range(0.85, 1.15), sc)
+		enhance_stylized_materials(inst, stone_style["top"], stone_style["top_blend"], stone_style["rim"],
+				stone_style["rim_s"], stone_style["shadow"], stone_style["tex"], stone_style["tex_scale"], stone_style["tex_blend"])
+		disable_shadows(inst)
+		set_detail_cull_range(inst, 110.0)
+		parent.add_child(inst)
+
+
+static func add_solar_mote_arc(parent: Node3D, p_start: Vector3, p_end: Vector3,
+		peak_lift: float = 2.6, count: int = 4) -> void:
+	## Places gleaming SolarMote collectibles smoothly along a parabolic jump arc from p_start to p_end.
+	for i in range(count):
+		var u := float(i + 1) / float(count + 1)
+		var pos := p_start.lerp(p_end, u)
+		pos.y += 4.0 * peak_lift * u * (1.0 - u)
+		var mote := SolarMote.new()
+		mote.position = pos
+		parent.add_child(mote)
 
 
 static func add_catenary_lanterns(parent: Node3D, p_a: Vector3, p_b: Vector3,

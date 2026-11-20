@@ -7,12 +7,14 @@ class_name GauntletRunner
 ##    PLUS establishing wide shots for Worlds 1-6, and the panoramic Summit Look-Down vista!
 ## 3. Measures BOTH vsync-enabled and VSYNC_DISABLED true GPU frame time / FPS on Apple M2!
 
-const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/2fb05da4-466f-49ac-bf17-8429bf09d3e4/scratch/gauntlet"
+const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/5eedaab6-bef9-4295-b630-bf7c0a9256bd/scratch/gauntlet"
 
 
 func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerController,
 		char_select: CharacterSelectUI, hud: GameHUD, pause_ui: PauseMenuUI,
-		_diorama_models: Dictionary, diorama_cam: Camera3D) -> void:
+		_diorama_models: Dictionary, diorama_cam: Camera3D,
+		loading_ui: LoadingScreenUI = null, cutscene: OpeningCutscene = null,
+		guide_ui: GuideSettingsPanelUI = null) -> void:
 	DirAccess.make_dir_recursive_absolute(OUT_DIR)
 	print("================ SOLSTICE SPIRE GAUNTLET AUDIT ================")
 	print("[GAUNTLET] PhoneController Embedded Server listening on: %s" % PhoneController.get_active_url())
@@ -34,24 +36,52 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 	for _i in range(6):
 		await get_tree().process_frame
 
-	# Shot 1: Title & Live 3D Character Select Diorama (full UI)
-	spire.set_diorama_cull(true, main_node.get_node("CharacterDiorama").global_position)
+	var diorama_node := main_node.get_node("CharacterDiorama") as Node3D
+
+	# Shot 00: Bespoke Storybook Loading Screen
+	if loading_ui:
+		char_select.visible = false
+		loading_ui.set_preview_progress(0.54)
+		await _snap("00_loading_screen.png")
+		loading_ui.skip_immediate()
+
+	# Shot 00b: Grand Descent Opening Cutscene (mid-descent sweeping past Realms)
+	if cutscene:
+		char_select.visible = false
+		cutscene.seek_for_gauntlet(spire, atmo, diorama_node, 5.2)
+		await _snap("00b_cutscene_descent.png")
+		cutscene.skip_immediate()
+
+	# Shot 1: Title & Live 3D Character Select Diorama (full UI with Guide & Settings + Perk Bio)
+	diorama_node.visible = true
+	diorama_cam.current = true
+	char_select.visible = true
+	spire.set_diorama_cull(true, diorama_node.global_position)
 	if atmo.world_environment and atmo.world_environment.environment:
 		atmo.world_environment.environment.volumetric_fog_length = 40.0
+	atmo.apply_for_altitude(10.0, true)
 	diorama_cam.far = 260.0
 	await _snap("01_title_diorama.png")
 
 	# Shot 1b: Title Diorama with iPhone 15 DualSense QR Pairing Card active
 	PhoneController.set_phone_mode(true)
 	await _snap("01b_title_phone_qr.png")
+	PhoneController.set_phone_mode(false)
 	var fps_diorama := await _measure_fps("TitleDiorama")
+
+	# Shot 1c: Start Screen Guide & Settings Modal
+	if guide_ui:
+		guide_ui.open_animated()
+		await get_tree().create_timer(0.28).timeout
+		await _snap("01c_start_guide_settings.png")
+		guide_ui.visible = false
 
 	# Shot 2: Tight Portrait Close-Up of ALL THREE heroes + Pip's glowing ember lantern!
 	char_select.visible = false
 	diorama_cam.far = 260.0
 	diorama_cam.position = Vector3(0.0, 0.94, 4.15)
 	diorama_cam.fov = 42.0
-	diorama_cam.look_at(main_node.get_node("CharacterDiorama").global_position + Vector3(0.0, 0.78, 0.18), Vector3.UP)
+	diorama_cam.look_at(diorama_node.global_position + Vector3(0.0, 0.78, 0.18), Vector3.UP)
 	await _snap("02_characters_closeup.png")
 
 	# Prepare review camera for establishing vistas
@@ -59,9 +89,9 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 	review_cam.fov = 64.0
 	review_cam.far = 1600.0
 	main_node.add_child(review_cam)
-	main_node.get_node("CharacterDiorama").visible = false
+	diorama_node.visible = false
 
-	# Shot 3: Live 3rd-Person Gameplay Framing in World 1 (with HUD + borderless toast!)
+	# Shot 3: Live 3rd-Person Gameplay Framing in World 1 (with HUD + Solar Motes + borderless toast!)
 	if atmo.world_environment and atmo.world_environment.environment:
 		atmo.world_environment.environment.volumetric_fog_length = 85.0
 	spire.set_diorama_cull(false)
@@ -77,11 +107,16 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 	await _snap("03_world1_gameplay_hud.png")
 	var fps_w1 := await _measure_fps("World1Play")
 
-	# Shot 11: Pause Menu UI Audit Capture (HUD faded out & toast hidden!)
+	# Shot 3b: Player-height view right before the First Giant Sun-Flower Bounce Pad + Solar Mote arc!
+	hud.hide_toast_immediate()
+	await _shot_player_height(player, atmo, Vector3(13.0, 7.2, 3.0), deg_to_rad(-45.0), 12.0, "03b_first_flower_jump.png")
+
+	# Shot 11: Pause Menu UI Audit Capture (HUD faded out & toast hidden, showing updated toggles & no Change Explorer!)
 	hud.hide_toast_immediate()
 	hud.modulate.a = 0.0
 	if pause_ui:
-		pause_ui.visible = true
+		pause_ui.open_animated()
+		await get_tree().create_timer(0.28).timeout
 		await _snap("11_pause_menu.png")
 		pause_ui.visible = false
 

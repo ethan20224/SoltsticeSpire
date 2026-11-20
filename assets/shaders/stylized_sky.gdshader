@@ -51,15 +51,15 @@ void sky() {
 	vec3 dir = normalize(EYEDIR);
 	float h = dir.y;
 
-	// Rich 4-stop Painterly Ghibli sky dome gradient
+	// Rich 4-stop Painterly Little Prince / Astro Bot sky dome gradient
 	vec3 col;
 	if (h >= 0.0) {
-		float t_low = smoothstep(0.0, 0.32, h);
-		float t_high = smoothstep(0.22, 0.88, h);
+		float t_low = smoothstep(0.0, 0.28, h);
+		float t_high = smoothstep(0.20, 0.84, h);
 		col = mix(horizon_color.rgb, mid_sky_color.rgb, t_low);
 		col = mix(col, zenith_color.rgb, t_high);
 	} else {
-		float t_down = smoothstep(0.0, -0.55, h);
+		float t_down = smoothstep(0.0, -0.48, h);
 		col = mix(horizon_color.rgb, abyss_color.rgb, t_down);
 	}
 
@@ -69,20 +69,24 @@ void sky() {
 		// Stylized sun disk & warm atmospheric Mie scatter glow
 		vec3 sun_dir = normalize(LIGHT0_DIRECTION);
 		float sun_dot = max(dot(dir, sun_dir), 0.0);
-		float halo = pow(sun_dot, 6.0) * 0.42 + pow(sun_dot, 32.0) * 0.65;
+		float halo = pow(sun_dot, 5.0) * 0.44 + pow(sun_dot, 28.0) * 0.72;
 		col += sun_color.rgb * halo * sun_halo_strength;
+		// Warm golden horizon haze band on the sun-facing side
+		float horiz_band = exp(-abs(h) * 8.5) * (0.35 + 0.65 * pow(sun_dot, 2.0));
+		col = mix(col, mix(horizon_color.rgb, sun_color.rgb, 0.45), horiz_band * 0.28);
 		float disk = smoothstep(1.0 - sun_size * 0.055, 1.0 - sun_size * 0.025, sun_dot);
-		col = mix(col, sun_color.rgb * 2.4, disk);
+		col = mix(col, sun_color.rgb * 2.5, disk);
 
 		// Painterly high-altitude drifting cloud bands above horizon
 		if (h > 0.02 && cloud_coverage > 0.01) {
 			vec2 cuv = dir.xz / (h + 0.24) * 1.45 + vec2(TIME * 0.012, TIME * 0.006);
 			float n = fbm(cuv);
-			float c_mask = smoothstep(1.0 - cloud_coverage, 1.0 - cloud_coverage + 0.24, n);
-			c_mask *= smoothstep(0.02, 0.16, h) * (1.0 - smoothstep(0.55, 0.92, h));
-			float sun_rim = pow(sun_dot, 3.0) * 0.5 + 0.5;
-			vec3 c_col = mix(cloud_shadow_color.rgb, cloud_lit_color.rgb, clamp(sun_rim * 0.7 + n * 0.5, 0.0, 1.0));
-			col = mix(col, c_col, c_mask * 0.78);
+			float c_mask = smoothstep(1.0 - cloud_coverage, 1.0 - cloud_coverage + 0.22, n);
+			c_mask *= smoothstep(0.02, 0.14, h) * (1.0 - smoothstep(0.55, 0.92, h));
+			float sun_rim = pow(sun_dot, 3.0) * 0.55 + 0.45;
+			vec3 c_col = mix(cloud_shadow_color.rgb, cloud_lit_color.rgb, clamp(sun_rim * 0.72 + n * 0.48, 0.0, 1.0));
+			c_col += sun_color.rgb * pow(sun_dot, 5.0) * 0.24;
+			col = mix(col, c_col, c_mask * 0.80);
 		}
 
 		// Ethereal Aurora Ribbons (World 5 & 6)
