@@ -210,7 +210,7 @@ func _build_menu() -> void:
 		["Air-Dash / Orb:", "Shift / E / RMB  ·  □ Square or R2 Trigger"],
 		["Slide / Long-Jump:", "C / Ctrl  ·  ○ Circle or L2 Trigger"],
 		["Rewind to Shrine:", "R  ·  △ Triangle or Top Shrine Pill"],
-		["Swap / Pause:", "1-3 / Esc  ·  Explorer Chips / ≡ Menu"],
+		["Swap / Fullscreen:", "1-3 / F (Full Screen) / Esc  ·  Explorer Chips"],
 	]
 	for item in controls_data:
 		var crow := HBoxContainer.new()

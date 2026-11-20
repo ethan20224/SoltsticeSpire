@@ -253,10 +253,25 @@ func _on_summit_reached(run_time: float, falls: int, shards: int, max_streak: in
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _gauntlet_mode or not GameState.is_playing:
+	if _gauntlet_mode:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_F or event.keycode == KEY_F or event.keycode == KEY_F11:
+			_toggle_fullscreen()
+			get_viewport().set_input_as_handled()
+			return
+	if not GameState.is_playing:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		_toggle_pause()
+
+
+func _toggle_fullscreen() -> void:
+	var mode := DisplayServer.window_get_mode()
+	if mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
 func _toggle_pause() -> void:
