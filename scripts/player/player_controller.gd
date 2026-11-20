@@ -55,6 +55,8 @@ var _jump_buffer_timer: float = 0.0
 var _has_double_jump: bool = true
 var _has_air_dash: bool = true
 var _has_solar_charge: bool = false
+var _can_jump_cut: bool = false
+var _bounce_arc_timer: float = 0.0
 
 var _dash_timer: float = 0.0
 var _dash_dir: Vector3 = Vector3.FORWARD
@@ -236,6 +238,7 @@ func _physics_process(delta: float) -> void:
 	_portal_cooldown = maxf(0.0, _portal_cooldown - delta)
 	_wall_cooldown = maxf(0.0, _wall_cooldown - delta)
 	_recent_sky_dive_timer = maxf(0.0, _recent_sky_dive_timer - delta)
+	_bounce_arc_timer = maxf(0.0, _bounce_arc_timer - delta)
 	_is_fluttering = false
 
 	# Count down active 30-second Shrine Rewind window
@@ -359,6 +362,8 @@ func _physics_process(delta: float) -> void:
 
 	# Apply world updrafts smoothly
 	if external_updraft.length_squared() > 0.001:
+		if external_updraft.y > 0.1:
+			_can_jump_cut = false
 		velocity += external_updraft * delta
 		velocity.y = minf(velocity.y, 19.5)
 		external_updraft = Vector3.ZERO
@@ -374,6 +379,8 @@ func _physics_process(delta: float) -> void:
 		_coyote_timer = _get_effective_coyote_time()
 		_has_double_jump = true
 		_has_air_dash = true
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.0
 		_flutter_timer = 0.0
 		_last_wall_obj = null
 		_peak_fall_speed = 0.0
@@ -527,8 +534,9 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 		velocity.x = move_toward(velocity.x, target_vx, accel * delta)
 		velocity.z = move_toward(velocity.z, target_vz, accel * delta)
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, decel * delta)
-		velocity.z = move_toward(velocity.z, 0.0, decel * delta)
+		var eff_decel := (air_decel * 0.25) if (not is_on_floor() and _bounce_arc_timer > 0.0) else decel
+		velocity.x = move_toward(velocity.x, 0.0, eff_decel * delta)
+		velocity.z = move_toward(velocity.z, 0.0, eff_decel * delta)
 
 	# Jump & Double-Jump with Coyote Time + Jump Buffer + Rhythm Jump Chain
 	if _jump_buffer_timer > 0.0:
@@ -547,6 +555,8 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			velocity.y = jump_velocity
 			_coyote_timer = 0.0
 			_jump_buffer_timer = 0.0
+			_can_jump_cut = true
+			_bounce_arc_timer = 0.0
 			_flutter_timer = 0.0
 			state = State.AIR
 			char_rig.trigger_squash(Vector3(0.80, 1.26, 0.80))
@@ -557,6 +567,8 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			velocity.y = double_jump_velocity
 			_has_double_jump = false
 			_jump_buffer_timer = 0.0
+			_can_jump_cut = false
+			_bounce_arc_timer = 0.0
 			_flutter_timer = 0.0
 			state = State.AIR
 			char_rig.trigger_double_jump_flip()
@@ -575,13 +587,16 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 				velocity.y = maxf(velocity.y - gravity_apex * 0.45 * gravity_multiplier * delta, -4.2)
 			return
 
+		if velocity.y <= 0.0:
+			_can_jump_cut = false
 		var g := gravity_up
 		if absf(velocity.y) < apex_threshold:
 			g = gravity_apex
 		elif velocity.y < 0.0:
 			g = gravity_down
-		# Short-hop variable jump height if Jump released early
-		if velocity.y > 4.0 and not jump_held:
+		# Short-hop variable jump height ONLY for player ground jumps if Jump released early
+		# (NEVER cut bounce pads, wall-kicks, double-jumps, updrafts, portals, or tether zips!)
+		if _can_jump_cut and velocity.y > 4.0 and not jump_held:
 			g *= 1.55
 		velocity.y -= g * gravity_multiplier * delta
 		velocity.y = maxf(velocity.y, -38.0)
@@ -641,6 +656,8 @@ func _process_slide(move_dir: Vector3, delta: float) -> void:
 	if _jump_buffer_timer > 0.0 and (_coyote_timer > 0.0 or is_on_floor()):
 		_jump_buffer_timer = 0.0
 		_coyote_timer = 0.0
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.0
 		_flutter_timer = 0.0
 		_had_chain_source = true
 		state = State.AIR
@@ -782,6 +799,8 @@ func _process_wall_run(_move_dir: Vector3, delta: float) -> void:
 		_wall_cooldown = 0.22
 		_has_air_dash = true
 		_has_double_jump = true
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.0
 		_flutter_timer = 0.0
 		_had_chain_source = true
 		velocity = tangent * (run_spd * 0.92) + _wall_normal * wall_kick_out + Vector3(0.0, wall_kick_up, 0.0)
@@ -819,6 +838,8 @@ func _try_start_mantle(move_dir: Vector3) -> bool:
 	velocity = Vector3.ZERO
 	_has_double_jump = true
 	_has_air_dash = true
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.0
 	_flutter_timer = 0.0
 	_try_trigger_clutch_save()
 	char_rig.trigger_squash(Vector3(0.84, 1.22, 0.84))
@@ -897,6 +918,8 @@ func _process_tether_zip(delta: float) -> void:
 		global_position = _tether_dest
 		var fwd := camera_rig.get_forward_xz()
 		velocity = fwd * 12.5 + Vector3(0.0, 12.4, 0.0)
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.0
 		state = State.AIR
 		char_rig.trigger_double_jump_flip()
 		return
@@ -956,6 +979,8 @@ func apply_bounce(impulse: Vector3, reset_air: bool = true, is_meteor: bool = fa
 	var meteor_active := is_meteor or is_sky_dive_recent()
 	_recent_sky_dive_timer = 0.0
 	_had_chain_source = true
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.78
 	_flutter_timer = 0.0
 
 	if not meteor_active:
@@ -963,7 +988,7 @@ func apply_bounce(impulse: Vector3, reset_air: bool = true, is_meteor: bool = fa
 	else:
 		_peak_fall_speed = 0.0
 
-	# Preserve incoming sprint/run momentum and blend smoothly with forward_boost!
+	# Guide cleanly along the bounce pad's designed arc while preserving running momentum!
 	var boost_h := Vector2(impulse.x, impulse.z)
 	if boost_h.length_squared() > 0.01:
 		var boost_len := boost_h.length()
@@ -972,16 +997,18 @@ func apply_bounce(impulse: Vector3, reset_air: bool = true, is_meteor: bool = fa
 		var cur_spd := cur_h.length()
 		if cur_spd > 1.2:
 			var incoming_dir := cur_h.normalized()
-			var blended_dir := boost_dir * 0.45 + incoming_dir * 0.55
+			var align := incoming_dir.dot(boost_dir)
+			var boost_weight := 0.65 if align > 0.2 else 0.78
+			var blended_dir := boost_dir * boost_weight + incoming_dir * (1.0 - boost_weight)
 			if blended_dir.length_squared() < 0.001:
 				blended_dir = boost_dir
 			else:
 				blended_dir = blended_dir.normalized()
-			var target_spd := maxf(cur_spd, maxf(boost_len, 7.5))
+			var target_spd := clampf(maxf(cur_spd, maxf(boost_len, 6.8)), 6.8, 12.0)
 			velocity.x = blended_dir.x * target_spd
 			velocity.z = blended_dir.y * target_spd
 		else:
-			var target_spd := maxf(boost_len, 6.0)
+			var target_spd := maxf(boost_len, 6.5)
 			velocity.x = boost_dir.x * target_spd
 			velocity.z = boost_dir.y * target_spd
 
@@ -1018,6 +1045,8 @@ func apply_portal_warp(dest_pos: Vector3, exit_dir: Vector3, launch_speed: float
 	velocity.y = maxf(velocity.y, 7.5)
 	_has_double_jump = true
 	_has_air_dash = true
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.45
 	_flutter_timer = 0.0
 	_peak_fall_speed = 0.0
 	_had_chain_source = true
@@ -1036,6 +1065,8 @@ func teleport_to_checkpoint(pos: Vector3, yaw_rad: float = 0.0) -> void:
 	velocity = Vector3.ZERO
 	_has_double_jump = true
 	_has_air_dash = true
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.0
 	_flutter_timer = 0.0
 	_peak_fall_speed = 0.0
 	_unrecoverable_sky_timer = 0.0

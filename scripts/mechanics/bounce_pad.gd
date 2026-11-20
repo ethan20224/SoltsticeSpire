@@ -10,6 +10,7 @@ class_name BouncePad
 @export var pad_color: Color = Color(0.28, 0.78, 0.44)
 
 var _visual_root: Node3D
+var _area: Area3D
 var _recoil_t: float = 0.0
 var _cooldown: float = 0.0
 var _ring_mesh: TorusMesh
@@ -32,21 +33,25 @@ func _ready() -> void:
 	_spark_mesh.radial_segments = 6
 	_spark_mesh.rings = 3
 
-	var area := Area3D.new()
-	area.collision_layer = 0
-	area.collision_mask = 2
+	_area = Area3D.new()
+	_area.collision_layer = 0
+	_area.collision_mask = 2
 	var col := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
-	cyl.radius = trigger_radius
-	cyl.height = 1.1
+	cyl.radius = trigger_radius + 0.18
+	cyl.height = 1.25
 	col.shape = cyl
-	col.position = Vector3(0.0, 0.45, 0.0)
-	area.add_child(col)
-	add_child(area)
-	area.body_entered.connect(_on_body_entered)
+	col.position = Vector3(0.0, 0.48, 0.0)
+	_area.add_child(col)
+	add_child(_area)
+	_area.body_entered.connect(_on_body_entered)
 
 
 func _on_body_entered(body: Node3D) -> void:
+	_trigger_bounce(body)
+
+
+func _trigger_bounce(body: Node3D) -> void:
 	if _cooldown > 0.0 or not body.is_in_group("player"):
 		return
 	_cooldown = 0.22
@@ -136,8 +141,18 @@ func _spawn_pollen_burst(is_meteor: bool) -> void:
 	)
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_cooldown = maxf(0.0, _cooldown - delta)
+	if _cooldown <= 0.0 and _area != null:
+		for body in _area.get_overlapping_bodies():
+			if body.is_in_group("player"):
+				if body is CharacterBody3D and (body as CharacterBody3D).velocity.y > 4.0:
+					continue
+				_trigger_bounce(body)
+				break
+
+
+func _process(delta: float) -> void:
 	if _recoil_t > 0.001:
 		_recoil_t = maxf(0.0, _recoil_t - delta * 3.8)
 		if _visual_root:
