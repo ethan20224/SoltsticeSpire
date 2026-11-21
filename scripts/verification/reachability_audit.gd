@@ -65,9 +65,12 @@ static func run_audit(chain: Array) -> Dictionary:
 		elif ka == "updraft_out":
 			max_h = 16.0
 			max_y = 6.5
-		elif ka == "wall_run" or kb == "wall_run":
+		elif ka == "wall_run":
 			max_h = MAX_WALL_HORIZ
 			max_y = 6.8
+		elif kb == "wall_run":
+			max_h = MAX_WALL_HORIZ
+			max_y = 3.8
 		elif ka == "portal_out":
 			max_h = 18.0
 			max_y = 6.5

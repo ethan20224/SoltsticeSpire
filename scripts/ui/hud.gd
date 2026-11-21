@@ -98,6 +98,10 @@ var _toast_timer: float = 0.0
 
 var _skydive_center: CenterContainer
 var _skydive_label: Label
+var _assist_center: CenterContainer
+var _assist_label: Label
+var _assist_yes_btn: Button
+var _assist_no_btn: Button
 
 var _callout_center: CenterContainer
 var _callout_pill: PanelContainer
@@ -133,6 +137,7 @@ func _ready() -> void:
 	GameState.solar_motes_changed.connect(_on_solar_motes)
 	GameState.solar_charge_changed.connect(_on_solar_charge_changed)
 	GameState.rewind_window_changed.connect(_on_rewind_window_changed)
+	GameState.pilgrim_assist_offer_changed.connect(_on_pilgrim_assist_offer_changed)
 	GameState.gameplay_callout.connect(_on_gameplay_callout)
 	GameState.fall_recorded.connect(_on_falls)
 	GameState.game_mode_changed.connect(func(_m: String):
@@ -420,6 +425,51 @@ func _build_hud() -> void:
 	UITheme.apply_font(_skydive_label, "bold", 13, Color(1.0, 0.92, 0.62))
 	skydive_pill.add_child(_skydive_label)
 
+	# PILGRIM GRACE 30s INTERACTIVE PROMPT (Yes / Not Now — clickable OR instant Y/N / D-Pad ↑↓!)
+	_assist_center = CenterContainer.new()
+	_assist_center.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_assist_center.offset_top = -182
+	_assist_center.offset_bottom = -134
+	_assist_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_assist_center.visible = false
+	add_child(_assist_center)
+
+	var assist_pill := PanelContainer.new()
+	assist_pill.add_theme_stylebox_override("panel", UITheme.glass_box(
+		Color(0.11, 0.085, 0.05, 0.92),
+		Color(1.0, 0.82, 0.36, 0.90),
+		999, 18, 7, 1
+	))
+	_assist_center.add_child(assist_pill)
+
+	var assist_row := HBoxContainer.new()
+	assist_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	assist_row.add_theme_constant_override("separation", 12)
+	assist_pill.add_child(assist_row)
+
+	_assist_label = Label.new()
+	_assist_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.apply_font(_assist_label, "extrabold", 13, Color(1.0, 0.92, 0.62))
+	assist_row.add_child(_assist_label)
+
+	_assist_yes_btn = Button.new()
+	_assist_yes_btn.custom_minimum_size = Vector2(0, 28)
+	UITheme.style_primary_cta(_assist_yes_btn, 12)
+	_assist_yes_btn.pressed.connect(func():
+		if player_ref and is_instance_valid(player_ref):
+			player_ref.accept_pilgrim_assist()
+	)
+	assist_row.add_child(_assist_yes_btn)
+
+	_assist_no_btn = Button.new()
+	_assist_no_btn.custom_minimum_size = Vector2(0, 28)
+	UITheme.style_secondary_pill(_assist_no_btn, false, 12)
+	_assist_no_btn.pressed.connect(func():
+		if player_ref and is_instance_valid(player_ref):
+			player_ref.dismiss_pilgrim_assist()
+	)
+	assist_row.add_child(_assist_no_btn)
+
 	# PUNCHY UPPER-CENTER DOPAMINE CALLOUT BANNER
 	_callout_center = CenterContainer.new()
 	_callout_center.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
@@ -504,6 +554,7 @@ func _refresh_control_hints(reset_timer: bool) -> void:
 	_update_tether_reticle()
 	_update_rewind_text()
 	_update_skydive_text()
+	_refresh_pilgrim_assist_buttons()
 	if _solar_charged:
 		_flow_label.text = "✦ SKY FOCUS READY · %s (Mid-Air)" % InputManager.get_glyph("focus")
 	if reset_timer:
@@ -634,6 +685,24 @@ func _on_rewind_window_changed(remaining_sec: float, active: bool) -> void:
 		_rewind_fade_tween = create_tween()
 		_rewind_fade_tween.tween_property(_rewind_center, "modulate:a", 0.0, 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		_rewind_fade_tween.tween_callback(func(): _rewind_center.visible = false)
+
+
+func _refresh_pilgrim_assist_buttons() -> void:
+	if _assist_yes_btn != null:
+		_assist_yes_btn.text = "Yes (%s)" % InputManager.get_glyph("assist_yes")
+	if _assist_no_btn != null:
+		_assist_no_btn.text = "No (%s)" % InputManager.get_glyph("assist_no")
+
+
+func _on_pilgrim_assist_offer_changed(target_cp: Dictionary, active: bool) -> void:
+	if _assist_center == null or _assist_label == null:
+		return
+	_assist_center.visible = active
+	if active:
+		var cp_pos: Vector3 = target_cp.get("pos", Vector3.ZERO)
+		var alt_m := int(round(cp_pos.y))
+		_assist_label.text = "✦ Stuck here? Teleport to Next Shrine (%dm)?" % alt_m
+		_refresh_pilgrim_assist_buttons()
 
 
 func _on_gameplay_callout(title: String, subtitle: String, accent_color: Color) -> void:

@@ -9,6 +9,7 @@ class_name PlayerController
 signal high_water_planted(pos: Vector3, alt_m: float)
 signal high_water_passed(alt_m: float)
 signal victory_skydive_landed()
+signal pilgrim_shrine_warp_requested(cp: Dictionary)
 
 enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, SKY_DIVE, VICTORY_DIVE }
 
@@ -105,6 +106,8 @@ var _rewind_dest: Vector3 = Vector3.ZERO
 var _rewind_t: float = 0.0
 var _unrecoverable_sky_timer: float = 0.0
 var _rewind_locked_out: bool = false
+var _stuck_assist_timer: float = 0.0
+var _stuck_anchor_y: float = 0.0
 
 # Clutch Save, Rhythm Chain, High-Water Flag & Ghost Recording
 var _peak_fall_speed: float = 0.0
@@ -254,7 +257,27 @@ func _exit_tree() -> void:
 
 func on_shrine_activated() -> void:
 	_rewind_locked_out = false
+	_stuck_assist_timer = 0.0
+	_stuck_anchor_y = global_position.y
 	GameState.set_rewind_window(0.0, false)
+	GameState.set_pilgrim_assist_offer({}, false)
+
+
+func accept_pilgrim_assist() -> void:
+	if GameState.is_purist_mode() or not GameState.pilgrim_assist_active or GameState.pilgrim_assist_target.is_empty():
+		return
+	var target_cp := GameState.pilgrim_assist_target.duplicate(true)
+	_stuck_assist_timer = 0.0
+	GameState.set_pilgrim_assist_offer({}, false)
+	pilgrim_shrine_warp_requested.emit(target_cp)
+
+
+func dismiss_pilgrim_assist() -> void:
+	if not GameState.pilgrim_assist_active:
+		return
+	_stuck_assist_timer = 0.0
+	GameState.set_pilgrim_assist_offer({}, false)
+	AudioDirector.play_sfx("ui_click", -5.0, 0.88)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -264,8 +287,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_manual_rewind()
 	elif event is InputEventKey:
 		var kev := event as InputEventKey
-		if kev.pressed and not kev.echo and (kev.physical_keycode == KEY_TAB or kev.physical_keycode == KEY_V):
-			_try_activate_sky_focus()
+		if kev.pressed and not kev.echo:
+			if kev.physical_keycode == KEY_TAB or kev.physical_keycode == KEY_V:
+				_try_activate_sky_focus()
+			elif GameState.pilgrim_assist_active and kev.physical_keycode == KEY_Y:
+				accept_pilgrim_assist()
+			elif GameState.pilgrim_assist_active and kev.physical_keycode == KEY_N:
+				dismiss_pilgrim_assist()
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_MIDDLE:
@@ -332,14 +360,50 @@ func _physics_process(delta: float) -> void:
 	if GameState.is_purist_mode():
 		if GameState.rewind_window_active:
 			GameState.set_rewind_window(0.0, false)
-	elif GameState.rewind_window_active:
-		var next_rem := GameState.rewind_window_remaining - delta
-		if next_rem <= 0.0:
-			_rewind_locked_out = true
-			GameState.set_rewind_window(0.0, false)
-			GameState.emit_callout("REWIND EXPIRED", "Climb back up or reach a Shrine!", Color(1.0, 0.56, 0.32))
+		_stuck_assist_timer = 0.0
+		GameState.set_pilgrim_assist_offer({}, false)
+	else:
+		if GameState.rewind_window_active:
+			var next_rem := GameState.rewind_window_remaining - delta
+			if next_rem <= 0.0:
+				_rewind_locked_out = true
+				GameState.set_rewind_window(0.0, false)
+				GameState.emit_callout("REWIND EXPIRED", "Climb back up or reach a Shrine!", Color(1.0, 0.56, 0.32))
+			else:
+				GameState.set_rewind_window(next_rem, true)
+
+		# Pilgrim Grace (30s Stuck Prompt): if stuck in the same altitude band past 20m for 30s,
+		# prompt the player to teleport to the next Sky Shrine above (Yes: Y / D-Pad ↑ / Click, No: N / D-Pad ↓)
+		if not GameState.has_finished and not GameState.victory_skydive_active and state != State.REWIND and global_position.y >= 20.0:
+			if global_position.y > _stuck_anchor_y + 6.0:
+				_stuck_anchor_y = global_position.y
+				_stuck_assist_timer = 0.0
+				GameState.set_pilgrim_assist_offer({}, false)
+			else:
+				var next_cp := GameState.get_next_checkpoint_above(maxf(global_position.y, _stuck_anchor_y))
+				if next_cp.is_empty():
+					_stuck_assist_timer = 0.0
+					GameState.set_pilgrim_assist_offer({}, false)
+				else:
+					if GameState.pilgrim_assist_active:
+						if InputManager.consume_assist_yes_just_pressed():
+							accept_pilgrim_assist()
+							return
+						elif InputManager.consume_assist_no_just_pressed():
+							dismiss_pilgrim_assist()
+					else:
+						# Drain stale D-pad presses before prompt appears
+						InputManager.consume_assist_yes_just_pressed()
+						InputManager.consume_assist_no_just_pressed()
+						var real_dt_stuck := delta / maxf(Engine.time_scale, 0.05)
+						_stuck_assist_timer += real_dt_stuck
+						if _stuck_assist_timer >= 30.0:
+							GameState.set_pilgrim_assist_offer(next_cp, true)
+							AudioDirector.play_sfx("ui_click", -4.0, 1.15)
 		else:
-			GameState.set_rewind_window(next_rem, true)
+			_stuck_assist_timer = 0.0
+			_stuck_anchor_y = global_position.y
+			GameState.set_pilgrim_assist_offer({}, false)
 
 	# Record Ghost Sample every 0.15s while actively climbing
 	if not GameState.has_finished:
@@ -1314,6 +1378,9 @@ func teleport_to_checkpoint(pos: Vector3, yaw_rad: float = 0.0) -> void:
 	_peak_fall_speed = 0.0
 	_unrecoverable_sky_timer = 0.0
 	_rewind_locked_out = false
+	_stuck_assist_timer = 0.0
+	_stuck_anchor_y = pos.y
+	GameState.set_pilgrim_assist_offer({}, false)
 	_landing_chain_timer = 0.0
 	_rhythm_chain_count = 0
 	_had_chain_source = false

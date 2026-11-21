@@ -26,6 +26,7 @@ func _ready() -> void:
 	_build_trigger()
 	if is_world_start:
 		GameState.register_world_spawn(world_idx, checkpoint_id, global_position + spawn_offset, deg_to_rad(spawn_yaw_deg))
+	GameState.register_checkpoint(checkpoint_id, world_idx, global_position + spawn_offset, deg_to_rad(spawn_yaw_deg), is_summit_crown)
 
 
 func _build_visuals() -> void:

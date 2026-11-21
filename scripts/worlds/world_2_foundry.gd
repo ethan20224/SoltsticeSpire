@@ -162,7 +162,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	# =========================================================================
 	# ACT 6 (293m -> 355m): The Great Carillon Finale Sprint
 	# =========================================================================
-	WorldHelper.add_wall_run(self, BELL, Vector3(-28.5, 296.0, -8.5), Vector3(0.0, 82.0, 0.0), Vector3(8.8, 4.4, 1.0), true, 2, audit)
+	WorldHelper.add_wall_run(self, BELL, Vector3(-28.5, 295.0, -8.5), Vector3(0.0, 82.0, 0.0), Vector3(8.8, 4.4, 1.0), true, 2, audit)
 	WorldHelper.add_solar_mote_arc(self, cp3 + Vector3(-2.0, 1.0, 2.0), Vector3(-26.5, 300.2, 1.5), 2.6, 4)
 	WorldHelper.add_spinning_gear(self, Vector3(-26.5, 299.5, 1.5), 38.0, 1.05, audit)
 	WorldHelper.add_bounce_pad(self, VENT, Vector3(-23.0, 303.0, 11.0), 24.5, 2.3, Vector3(2.0, 0.0, 2.5), STYLE, audit)

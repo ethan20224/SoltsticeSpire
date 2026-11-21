@@ -89,6 +89,10 @@ func _ready() -> void:
 	_pause_menu.resume_requested.connect(_resume_from_pause)
 	_pause_menu.world_teleport_requested.connect(_teleport_to_world)
 	_pause_menu.restart_requested.connect(_restart_full_climb)
+	_pause_menu.pilgrim_assist_requested.connect(func():
+		_resume_from_pause()
+		player.accept_pilgrim_assist()
+	)
 	canvas.add_child(_pause_menu)
 
 	_summit_ui = SummitVictoryUI.new()
@@ -104,6 +108,7 @@ func _ready() -> void:
 	_summit_ui.climb_again_requested.connect(_restart_full_climb)
 	canvas.add_child(_summit_ui)
 	player.victory_skydive_landed.connect(_on_victory_skydive_landed)
+	player.pilgrim_shrine_warp_requested.connect(_on_pilgrim_shrine_warp)
 
 	_credits_overlay = CreditsOverlayUI.new()
 	_credits_overlay.closed.connect(_on_credits_closed)
@@ -508,6 +513,25 @@ func _start_victory_skydive() -> void:
 	spire_world.spawn_victory_sky_rings()
 	player.start_victory_skydive()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_pilgrim_shrine_warp(cp: Dictionary) -> void:
+	if GameState.is_purist_mode() or cp.is_empty():
+		return
+	var cp_id: String = str(cp["id"])
+	var w_idx: int = int(cp["world_idx"])
+	var cp_pos: Vector3 = cp["pos"]
+	var cp_yaw: float = float(cp["yaw"])
+	var prev_world := GameState.current_world_idx
+	GameState.activate_checkpoint(cp_id, w_idx, cp_pos, cp_yaw)
+	player.teleport_to_checkpoint(cp_pos, cp_yaw)
+	spire_world.set_focus_world(w_idx, false, cp_pos.y)
+	atmosphere.apply_for_altitude(cp_pos.y, true)
+	if w_idx != prev_world:
+		AudioDirector.set_biome_immediate(w_idx)
+	AudioDirector.play_sfx("checkpoint", -1.0, 1.12)
+	player.char_rig.emit_burst(Vector3(0.0, 0.45, 0.0))
+	GameState.emit_callout("PILGRIM GRACE", "Teleported to Next Sky Shrine (%dm)" % int(round(cp_pos.y)), Color(1.0, 0.88, 0.42))
 
 
 func _on_victory_skydive_landed() -> void:

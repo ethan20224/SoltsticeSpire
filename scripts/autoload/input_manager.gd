@@ -34,7 +34,11 @@ var _dash_just_pressed_latch: bool = false
 var _slide_just_pressed_latch: bool = false
 var _rewind_just_pressed_latch: bool = false
 var _focus_just_pressed_latch: bool = false
+var _assist_yes_just_pressed_latch: bool = false
+var _assist_no_just_pressed_latch: bool = false
 var _prev_focus_btn: bool = false
+var _prev_dpad_u: bool = false
+var _prev_dpad_d: bool = false
 
 var _prev_a: bool = false
 var _prev_b: bool = false
@@ -224,7 +228,11 @@ func _clear_gamepad_state() -> void:
 	_slide_just_pressed_latch = false
 	_rewind_just_pressed_latch = false
 	_focus_just_pressed_latch = false
+	_assist_yes_just_pressed_latch = false
+	_assist_no_just_pressed_latch = false
 	_prev_focus_btn = false
+	_prev_dpad_u = false
+	_prev_dpad_d = false
 	_prev_a = false
 	_prev_b = false
 	_prev_start = false
@@ -297,6 +305,8 @@ func _sample_gamepad() -> void:
 	var btn_start := Input.is_joy_button_pressed(jid, JOY_BUTTON_START)
 	var btn_dpad_l := Input.is_joy_button_pressed(jid, JOY_BUTTON_DPAD_LEFT)
 	var btn_dpad_r := Input.is_joy_button_pressed(jid, JOY_BUTTON_DPAD_RIGHT)
+	var btn_dpad_u := Input.is_joy_button_pressed(jid, JOY_BUTTON_DPAD_UP)
+	var btn_dpad_d := Input.is_joy_button_pressed(jid, JOY_BUTTON_DPAD_DOWN)
 
 	var new_jump := btn_a or btn_rb
 	var new_dash := btn_x or (trig_r > TRIGGER_THRESHOLD)
@@ -327,6 +337,10 @@ func _sample_gamepad() -> void:
 			_rewind_just_pressed_latch = true
 		if new_focus and not _prev_focus_btn:
 			_focus_just_pressed_latch = true
+		if btn_dpad_u and not _prev_dpad_u:
+			_assist_yes_just_pressed_latch = true
+		if btn_dpad_d and not _prev_dpad_d:
+			_assist_no_just_pressed_latch = true
 		_last_stick_nav_dir = 0
 		_nav_repeat_timer = 0.0
 	else:
@@ -366,6 +380,8 @@ func _sample_gamepad() -> void:
 	_prev_start = btn_start
 	_prev_dpad_l = btn_dpad_l
 	_prev_dpad_r = btn_dpad_r
+	_prev_dpad_u = btn_dpad_u
+	_prev_dpad_d = btn_dpad_d
 
 
 func is_gamepad_active() -> bool:
@@ -427,6 +443,20 @@ func consume_focus_just_pressed() -> bool:
 	return false
 
 
+func consume_assist_yes_just_pressed() -> bool:
+	if _assist_yes_just_pressed_latch:
+		_assist_yes_just_pressed_latch = false
+		return true
+	return false
+
+
+func consume_assist_no_just_pressed() -> bool:
+	if _assist_no_just_pressed_latch:
+		_assist_no_just_pressed_latch = false
+		return true
+	return false
+
+
 func rumble(kind: String) -> void:
 	if not gamepad_connected or active_joy_id < 0 or not is_gamepad_active():
 		return
@@ -476,6 +506,8 @@ func get_glyph(action: String) -> String:
 			"rewind": return "△"
 			"pause": return "≡"
 			"confirm": return "✕"
+			"assist_yes": return "Y"
+			"assist_no": return "N"
 			_: return action.to_upper()
 
 	if input_mode == "gamepad":
@@ -491,6 +523,8 @@ func get_glyph(action: String) -> String:
 				"rewind": return "Y"
 				"pause": return "Menu"
 				"confirm": return "A"
+				"assist_yes": return "D-Pad ↑"
+				"assist_no": return "D-Pad ↓"
 				_: return action.to_upper()
 		elif gamepad_style == "switch":
 			match action:
@@ -504,6 +538,8 @@ func get_glyph(action: String) -> String:
 				"rewind": return "X"
 				"pause": return "+"
 				"confirm": return "B"
+				"assist_yes": return "D-Pad ↑"
+				"assist_no": return "D-Pad ↓"
 				_: return action.to_upper()
 		else:  # "ps5"
 			match action:
@@ -517,6 +553,8 @@ func get_glyph(action: String) -> String:
 				"rewind": return "△"
 				"pause": return "Options"
 				"confirm": return "✕"
+				"assist_yes": return "D-Pad ↑"
+				"assist_no": return "D-Pad ↓"
 				_: return action.to_upper()
 
 	# Default: "keyboard"
@@ -531,4 +569,6 @@ func get_glyph(action: String) -> String:
 		"rewind": return "R"
 		"pause": return "Esc"
 		"confirm": return "Enter"
+		"assist_yes": return "Y"
+		"assist_no": return "N"
 		_: return action.to_upper()

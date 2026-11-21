@@ -9,10 +9,12 @@ class_name PauseMenuUI
 signal resume_requested()
 signal world_teleport_requested(world_idx: int)
 signal restart_requested()
+signal pilgrim_assist_requested()
 
 const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
 
 var _card: PanelContainer
+var _assist_btn: Button
 var _realm_section_lbl: Label
 var _world_buttons: Array[Button] = []
 
@@ -82,6 +84,12 @@ func _sync_controls_from_state() -> void:
 	_refresh_world_buttons()
 	_refresh_toggles()
 	_refresh_ctrl_mode_buttons()
+	if _assist_btn != null:
+		var show_assist := (not GameState.is_purist_mode()) and GameState.pilgrim_assist_active and not GameState.pilgrim_assist_target.is_empty()
+		_assist_btn.visible = show_assist
+		if show_assist:
+			var cp_pos: Vector3 = GameState.pilgrim_assist_target.get("pos", Vector3.ZERO)
+			_assist_btn.text = "✦ Pilgrim Grace: Teleport to Next Shrine (%dm)" % int(round(cp_pos.y))
 
 
 func _build_menu() -> void:
@@ -140,6 +148,17 @@ func _build_menu() -> void:
 		resume_requested.emit()
 	)
 	v.add_child(resume_b)
+
+	_assist_btn = Button.new()
+	_assist_btn.text = "✦ Pilgrim Grace: Teleport to Next Shrine"
+	_assist_btn.custom_minimum_size = Vector2(0, 34)
+	_assist_btn.visible = false
+	UITheme.style_secondary_pill(_assist_btn, true, 13)
+	_assist_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click")
+		pilgrim_assist_requested.emit()
+	)
+	v.add_child(_assist_btn)
 
 	# Realm Fast-Travel (2x3)
 	_realm_section_lbl = Label.new()
@@ -556,6 +575,12 @@ func _build_menu() -> void:
 	_refresh_world_buttons()
 	_refresh_toggles()
 	_refresh_ctrl_mode_buttons()
+	if _assist_btn != null:
+		var show_assist := (not GameState.is_purist_mode()) and GameState.pilgrim_assist_active and not GameState.pilgrim_assist_target.is_empty()
+		_assist_btn.visible = show_assist
+		if show_assist:
+			var cp_pos: Vector3 = GameState.pilgrim_assist_target.get("pos", Vector3.ZERO)
+			_assist_btn.text = "✦ Pilgrim Grace: Teleport to Next Shrine (%dm)" % int(round(cp_pos.y))
 
 
 func _make_styled_slider(min_v: float, max_v: float, step_v: float, init_v: float,

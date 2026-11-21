@@ -8,6 +8,7 @@ signal world_entered(world_idx: int, world_name: String, subtitle: String)
 signal shard_collected(total_shards: int, max_shards: int)
 signal solar_motes_changed(total: int)
 signal rewind_window_changed(remaining_sec: float, active: bool)
+signal pilgrim_assist_offer_changed(target_cp: Dictionary, active: bool)
 signal gameplay_callout(title: String, subtitle: String, accent_color: Color)
 signal solar_charge_changed(charged: bool)
 signal flow_changed(flow_value: float, streak: int)
@@ -160,6 +161,9 @@ var purist_halo_unlocked: bool = false
 var purist_halo_equipped: bool = true
 var leaderboard: Array = []
 var last_victory_summary: Dictionary = {}
+var all_checkpoints: Array[Dictionary] = []
+var pilgrim_assist_active: bool = false
+var pilgrim_assist_target: Dictionary = {}
 
 var _last_saved_best_alt: float = 0.0
 
@@ -425,6 +429,37 @@ func register_world_spawn(world_idx: int, cp_id: String, pos: Vector3, yaw: floa
 	if world_idx == 0 and current_checkpoint_id == "w1_start":
 		current_checkpoint_pos = pos
 		current_checkpoint_yaw = yaw
+
+
+func register_checkpoint(cp_id: String, world_idx: int, pos: Vector3, yaw: float = 0.0, is_summit: bool = false) -> void:
+	if is_summit:
+		return
+	for i in range(all_checkpoints.size()):
+		if str(all_checkpoints[i].get("id", "")) == cp_id:
+			all_checkpoints[i] = {"id": cp_id, "world_idx": world_idx, "pos": pos, "yaw": yaw}
+			return
+	all_checkpoints.append({"id": cp_id, "world_idx": world_idx, "pos": pos, "yaw": yaw})
+	all_checkpoints.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["pos"] as Vector3).y < (b["pos"] as Vector3).y
+	)
+
+
+func get_next_checkpoint_above(cur_y: float) -> Dictionary:
+	for cp in all_checkpoints:
+		var p: Vector3 = cp["pos"]
+		if p.y > cur_y + 4.5:
+			return cp
+	return {}
+
+
+func set_pilgrim_assist_offer(target_cp: Dictionary, active: bool) -> void:
+	var next_id := str(target_cp.get("id", "")) if active else ""
+	var prev_id := str(pilgrim_assist_target.get("id", "")) if pilgrim_assist_active else ""
+	if pilgrim_assist_active == active and next_id == prev_id:
+		return
+	pilgrim_assist_active = active
+	pilgrim_assist_target = target_cp.duplicate(true) if active else {}
+	pilgrim_assist_offer_changed.emit(pilgrim_assist_target, pilgrim_assist_active)
 
 
 func activate_checkpoint(cp_id: String, world_idx: int, pos: Vector3, yaw: float = 0.0) -> bool:

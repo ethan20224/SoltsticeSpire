@@ -114,7 +114,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	var d3 := Vector3(20.5, 1006.5, 17.5)
 	WorldHelper.add_static_cyl_platform(self, DAIS, d3, 3.0, 0.8, Vector3(1.05, 1.0, 1.05), Vector3.ZERO, STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, BRAZIER, d3 + Vector3(1.8, 0.0, 1.5), -45.0, STYLE, Color(1.0, 0.74, 0.28))
-	WorldHelper.add_wall_run(self, MONOLITH, Vector3(28.5, 1011.0, 7.5), Vector3(0.0, -78.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
+	WorldHelper.add_wall_run(self, MONOLITH, Vector3(27.4, 1009.4, 8.2), Vector3(0.0, -78.0, 0.0), Vector3(9.4, 4.6, 1.0), false, 0, audit)
 	WorldHelper.add_bounce_pad(self, JELLY, Vector3(26.0, 1014.5, -3.5), 24.5, 2.5, Vector3(-1.5, 0.0, -3.5), STYLE, audit)
 	WorldHelper.add_solar_mote_arc(self, Vector3(26.0, 1015.5, -3.5), Vector3(19.0, 1029.5, -16.0), 4.5, 4)
 	WorldHelper.add_tether_orb(self, Vector3(19.0, 1029.5, -16.0), audit)
