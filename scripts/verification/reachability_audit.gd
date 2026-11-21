@@ -6,7 +6,7 @@ class_name ReachabilityAudit
 
 # Conservative verified reach envelopes with safety margin:
 const MAX_STD_HORIZ := 16.5        # Sprint + Double-Jump + Air-Dash edge-to-edge clearance
-const MAX_STD_UP := 5.6            # Jump (11.6) + Double-Jump (10.8) + Ledge-Mantle (1.45m) max vertical step
+const MAX_STD_UP := 5.8            # Jump (13.0) + Double-Jump (11.2) + Ledge-Mantle max vertical step
 const MAX_BOUNCE_HORIZ := 17.0
 const MAX_WALL_HORIZ := 18.0
 const MAX_TETHER_DIST := 25.0      # Exact tether lock-on radius in PlayerController

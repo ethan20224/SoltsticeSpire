@@ -22,8 +22,8 @@ enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, S
 @export var air_accel: float = 28.0
 @export var air_decel: float = 8.0
 
-@export var jump_velocity: float = 11.6
-@export var double_jump_velocity: float = 10.8
+@export var jump_velocity: float = 13.0
+@export var double_jump_velocity: float = 11.2
 @export var gravity_up: float = 26.0
 @export var gravity_down: float = 37.5
 @export var gravity_apex: float = 18.0
@@ -180,7 +180,7 @@ func _get_effective_coyote_time() -> float:
 
 
 func _get_effective_mantle_max_dy() -> float:
-	return 1.75 if GameState.selected_character == "pip" else 1.45
+	return 2.05 if GameState.selected_character == "pip" else 1.70
 
 
 func _get_effective_dash_speed() -> float:

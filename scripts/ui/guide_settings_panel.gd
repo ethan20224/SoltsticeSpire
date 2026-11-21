@@ -237,7 +237,7 @@ func _build_modal() -> void:
 
 	var controls_data := [
 		["Move / Camera:", "WASD + Mouse  ·  L-Stick (Edge Sprint) + R-Stick"],
-		["Jump / Wall-Kick:", "Space  ·  ✕ / A / B or R1 (2-Jump timing for high ledges!)"],
+		["Jump / Wall-Kick:", "Space  ·  ✕ / A / B or R1 (Vesper: Hold to Flutter)"],
 		["Air-Dash / Orb:", "Shift / E / RMB  ·  □ / X / Y or R2 Trigger"],
 		["Sky Focus (Slow-Mo):", "Tab / V / Mid-Click  ·  L1 / R3 (1.5s Mid-Air Slow-Mo)"],
 		["Slide / Sky-Dive:", "C / Ctrl  ·  ○ / B / A or L2 (Hold mid-air to Dive)"],
