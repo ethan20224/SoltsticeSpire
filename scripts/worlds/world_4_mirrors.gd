@@ -109,6 +109,15 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_shrine(self, "w4_cp2", 3, cp2, 130.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cp2 + Vector3(-2.1, 0.0, 1.9), -35.0, STYLE, Color(1.0, 0.76, 0.38))
 
+	# SET-PIECE / PRO SHORTCUT #4: "The Cathedral Razor-Beam & Secret Mirror Warp"
+	var razor := WorldHelper.add_static_box_platform(self, MARBLE, Vector3(-28.0, 594.2, 22.0), Vector3(4.6, 0.5, 4.6), Vector3(0.25, 0.9, 2.7), Vector3(0.0, -45.0, 0.0), STYLE, [])
+	WorldHelper.apply_crystal_shader(razor, Color(0.95, 0.78, 1.0, 0.88))
+	var secret_in := Vector3(-33.0, 595.0, 27.0)
+	WorldHelper.add_static_box_platform(self, MARBLE, secret_in, Vector3(4.6, 0.5, 4.6), Vector3(0.65, 1.0, 0.65), Vector3(0.0, -45.0, 0.0), STYLE, [])
+	var secret_out := Vector3(23.5, 626.2, 1.5)
+	WorldHelper.add_portal_pair(self, secret_in, 135.0, secret_out, 180.0, 17.5, [])
+	WorldHelper.add_shortcut_beacon(self, Vector3(26.5, 625.5, -3.5), 0.0, "RAZOR-BEAM WARP!", "MIRROR GALLERY PRO SKIP")
+
 	# =========================================================================
 	# ACT 11 (594m -> 662m): Twin Mirror Corridor & Shatter-Portal Combo
 	# =========================================================================
@@ -149,6 +158,12 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_box_platform(self, MARBLE, cp3, Vector3(4.8, 0.5, 4.8), Vector3(1.3, 1.0, 1.3), Vector3.ZERO, STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w4_cp3", 3, cp3, 175.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cp3 + Vector3(-2.1, 0.0, -1.9), 80.0, STYLE, Color(1.0, 0.76, 0.38))
+
+	# EXPOSED OVER-THE-VOID OVERLOOK #3: Translucent Crystal-Glass Sky-Beam jutting 11.3m over 661m of void!
+	var glass_overlook := WorldHelper.add_static_box_platform(self, MARBLE, cp3 + Vector3(-6.8, 0.15, -1.55), Vector3(4.6, 0.5, 4.6), Vector3(0.26, 0.65, 2.45), Vector3(0.0, 77.2, 0.0), STYLE, [])
+	WorldHelper.apply_crystal_shader(glass_overlook, Color(0.92, 0.80, 1.0, 0.78))
+	WorldHelper.add_solar_mote_arc(self, cp3 + Vector3(-3.2, 1.0, -0.75), cp3 + Vector3(-11.0, 1.2, -2.5), 1.4, 3)
+	WorldHelper.add_world_hint(self, cp3 + Vector3(-11.4, 2.1, -2.6), "CHRONICLE IV — THE SHATTERED LENS", "Look straight through the glass — 661m of open sky down to the glowing valley city.")
 
 	# =========================================================================
 	# ACT 12 (661m -> 730m): The Kaleidoscope Finale into the Aurora Night

@@ -3,13 +3,15 @@ class_name CharacterSelectUI
 ## Airy, Tactile Title & Live 3D Character Select Overlay.
 ## Uses OFL Nunito typography, soft left-side radial scrim (zero harsh outlines!),
 ## warm cream selected chip vs sole honey-amber primary CTA, leaving 85%+ of the diorama unobstructed!
-## Includes top-right Controller Mode Selector (Keyboard & Mouse vs iPhone 15 DualSense QR Deck).
+## Includes top-right 3-Mode Controller Selector (Mac Keyboard, Physical Controller PS5/Xbox/Switch Pro,
+## and iPhone 15 DualSense QR Deck) plus bottom Ascent Mode Toggle Pill (Pilgrim vs Purist Mode).
 
 signal character_highlighted(char_id: String)
 signal ascent_started()
 signal guide_settings_requested()
 
 const ORDER := ["pip", "koko", "vesper"]
+const STYLE_CYCLE := ["ps5", "xbox", "switch"]
 const PairingPanelScript = preload("res://scripts/ui/phone_pairing_panel.gd")
 
 var input_blocked: bool = false
@@ -24,8 +26,13 @@ var _bottom_dock: VBoxContainer
 var _ctrl_dock: VBoxContainer
 var _guide_btn: Button
 var _kb_mode_btn: Button
+var _gamepad_mode_btn: Button
+var _gamepad_style_btn: Button
 var _phone_mode_btn: Button
 var _pairing_panel: PanelContainer
+var _pilgrim_btn: Button
+var _purist_btn: Button
+var _mode_caption_label: Label
 var _selected_id: String = "pip"
 
 
@@ -34,10 +41,20 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_ui()
 	_select_character(GameState.selected_character, false)
+	_refresh_ascent_mode_ui()
 	GameState.character_changed.connect(func(cid: String):
 		if cid != _selected_id:
 			_select_character(cid, true)
 	)
+	GameState.game_mode_changed.connect(func(_m: String):
+		_refresh_ascent_mode_ui()
+	)
+	InputManager.input_mode_changed.connect(_on_input_mode_changed)
+	InputManager.gamepad_changed.connect(func(_c: bool, _n: String, _s: String):
+		_refresh_controller_mode_buttons()
+	)
+	InputManager.ui_nav_pressed.connect(_on_ui_nav_pressed)
+	InputManager.ui_confirm_pressed.connect(_on_ui_confirm_pressed)
 	PhoneController.mode_changed.connect(_on_phone_mode_changed)
 	PhoneController.connection_changed.connect(func(_c: bool, _cnt: int, _dev: String):
 		_refresh_controller_mode_buttons()
@@ -75,10 +92,10 @@ func _build_ui() -> void:
 	UITheme.apply_font(lead, "semibold", 18, UITheme.INK_PRIMARY, 0.38, 2)
 	_hero_block.add_child(lead)
 
-	# TOP-RIGHT GUIDE & SETTINGS + CONTROLLER MODE SELECTOR + EXPANDABLE IPHONE QR PAIRING CARD
+	# TOP-RIGHT GUIDE & SETTINGS + 3-MODE CONTROLLER SELECTOR + EXPANDABLE IPHONE QR PAIRING CARD
 	_ctrl_dock = VBoxContainer.new()
 	_ctrl_dock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_ctrl_dock.offset_left = -640
+	_ctrl_dock.offset_left = -880
 	_ctrl_dock.offset_right = -42
 	_ctrl_dock.offset_top = 34
 	_ctrl_dock.offset_bottom = 520
@@ -110,7 +127,7 @@ func _build_ui() -> void:
 
 	var mode_row := HBoxContainer.new()
 	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	mode_row.add_theme_constant_override("separation", 8)
+	mode_row.add_theme_constant_override("separation", 6)
 	mode_pill.add_child(mode_row)
 
 	var mode_lbl := Label.new()
@@ -120,23 +137,49 @@ func _build_ui() -> void:
 
 	_kb_mode_btn = Button.new()
 	_kb_mode_btn.text = "Mac Keyboard"
-	_kb_mode_btn.custom_minimum_size = Vector2(124, 34)
+	_kb_mode_btn.custom_minimum_size = Vector2(118, 34)
 	_kb_mode_btn.pressed.connect(func():
 		AudioDirector.play_sfx("ui_click", -2.0, 1.0)
-		PhoneController.set_phone_mode(false)
+		InputManager.set_input_mode("keyboard", true)
 	)
 	mode_row.add_child(_kb_mode_btn)
 
+	_gamepad_mode_btn = Button.new()
+	_gamepad_mode_btn.text = "Controller"
+	_gamepad_mode_btn.custom_minimum_size = Vector2(126, 34)
+	_gamepad_mode_btn.tooltip_text = "Select Controller mode (click again to cycle PS5 · Xbox · Switch Pro glyphs)"
+	_gamepad_mode_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.08)
+		if InputManager.input_mode != "gamepad":
+			InputManager.set_input_mode("gamepad", true)
+		else:
+			_cycle_gamepad_style()
+	)
+	mode_row.add_child(_gamepad_mode_btn)
+
+	_gamepad_style_btn = Button.new()
+	_gamepad_style_btn.text = "PS5 · Xbox · Switch"
+	_gamepad_style_btn.custom_minimum_size = Vector2(96, 34)
+	_gamepad_style_btn.tooltip_text = "Cycle controller prompt style: PS5 → Xbox → Switch Pro"
+	_gamepad_style_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.14)
+		if InputManager.input_mode != "gamepad":
+			InputManager.set_input_mode("gamepad", true)
+		_cycle_gamepad_style()
+	)
+	mode_row.add_child(_gamepad_style_btn)
+
 	_phone_mode_btn = Button.new()
 	_phone_mode_btn.text = "iPhone Controller"
-	_phone_mode_btn.custom_minimum_size = Vector2(146, 34)
+	_phone_mode_btn.custom_minimum_size = Vector2(138, 34)
 	_phone_mode_btn.pressed.connect(func():
 		AudioDirector.play_sfx("ui_click", -2.0, 1.15)
-		if PhoneController.use_phone_controller and _pairing_panel.visible:
+		if InputManager.input_mode == "phone" and _pairing_panel.visible:
 			_pairing_panel.visible = false
-			PhoneController.set_phone_mode(false)
+			var fallback := "gamepad" if InputManager.gamepad_connected else "keyboard"
+			InputManager.set_input_mode(fallback, true)
 		else:
-			PhoneController.set_phone_mode(true)
+			InputManager.set_input_mode("phone", true)
 			_pairing_panel.visible = true
 			UITheme.animate_enter(_pairing_panel, 0.0, 0.22)
 	)
@@ -145,7 +188,7 @@ func _build_ui() -> void:
 	_pairing_panel = PairingPanelScript.new(false)
 	_pairing_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
 	_pairing_panel.custom_minimum_size = Vector2(310, 0)
-	_pairing_panel.visible = PhoneController.use_phone_controller
+	_pairing_panel.visible = (InputManager.input_mode == "phone" or PhoneController.use_phone_controller)
 	_ctrl_dock.add_child(_pairing_panel)
 
 	_refresh_controller_mode_buttons()
@@ -153,12 +196,12 @@ func _build_ui() -> void:
 	# BOTTOM AIRY FLOATING SELECTOR DOCK
 	_bottom_dock = VBoxContainer.new()
 	_bottom_dock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_bottom_dock.offset_left = 140
-	_bottom_dock.offset_right = -140
-	_bottom_dock.offset_top = -194
-	_bottom_dock.offset_bottom = -26
+	_bottom_dock.offset_left = 120
+	_bottom_dock.offset_right = -120
+	_bottom_dock.offset_top = -236
+	_bottom_dock.offset_bottom = -22
 	_bottom_dock.alignment = BoxContainer.ALIGNMENT_CENTER
-	_bottom_dock.add_theme_constant_override("separation", 12)
+	_bottom_dock.add_theme_constant_override("separation", 10)
 	add_child(_bottom_dock)
 
 	# Sleek floating explorer caption pill with signature perk chip
@@ -166,12 +209,12 @@ func _build_ui() -> void:
 	_bottom_dock.add_child(caption_center)
 
 	var caption_pill := PanelContainer.new()
-	caption_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 24, 24, 10, 1))
+	caption_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 24, 24, 9, 1))
 	caption_center.add_child(caption_pill)
 
 	var cap_v := VBoxContainer.new()
 	cap_v.alignment = BoxContainer.ALIGNMENT_CENTER
-	cap_v.add_theme_constant_override("separation", 4)
+	cap_v.add_theme_constant_override("separation", 3)
 	caption_pill.add_child(cap_v)
 
 	var cap_row := HBoxContainer.new()
@@ -195,6 +238,44 @@ func _build_ui() -> void:
 	_perk_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UITheme.apply_font(_perk_label, "bold", 13, UITheme.ACCENT_AMBER)
 	cap_v.add_child(_perk_label)
+
+	# Sleek Ascent Mode Toggle Pill Row (Pilgrim Mode vs Purist Mode)
+	var mode_center := CenterContainer.new()
+	_bottom_dock.add_child(mode_center)
+
+	var ascent_pill := PanelContainer.new()
+	ascent_pill.add_theme_stylebox_override("panel", UITheme.glass_box(UITheme.SURFACE_GLASS, UITheme.BORDER_SUBTLE, 999, 14, 5, 1))
+	mode_center.add_child(ascent_pill)
+
+	var ascent_row := HBoxContainer.new()
+	ascent_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	ascent_row.add_theme_constant_override("separation", 8)
+	ascent_pill.add_child(ascent_row)
+
+	_pilgrim_btn = Button.new()
+	_pilgrim_btn.text = "✦ Pilgrim Mode"
+	_pilgrim_btn.custom_minimum_size = Vector2(138, 32)
+	_pilgrim_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.04)
+		var next_mode := "purist" if GameState.game_mode == "pilgrim" else "pilgrim"
+		GameState.set_game_mode(next_mode)
+	)
+	ascent_row.add_child(_pilgrim_btn)
+
+	_purist_btn = Button.new()
+	_purist_btn.text = "🔥 Purist Mode"
+	_purist_btn.custom_minimum_size = Vector2(138, 32)
+	_purist_btn.pressed.connect(func():
+		AudioDirector.play_sfx("ui_click", -2.0, 1.12)
+		var next_mode := "pilgrim" if GameState.game_mode == "purist" else "purist"
+		GameState.set_game_mode(next_mode)
+	)
+	ascent_row.add_child(_purist_btn)
+
+	_mode_caption_label = Label.new()
+	_mode_caption_label.text = "Shrines + 30s Rewind"
+	UITheme.apply_font(_mode_caption_label, "semibold", 12, UITheme.INK_SECONDARY)
+	ascent_row.add_child(_mode_caption_label)
 
 	# Floating Pill Row: Warm Cream Selected Explorer + Sole Honey-Amber Begin Ascent CTA
 	var row := HBoxContainer.new()
@@ -229,6 +310,23 @@ func play_intro_stagger() -> void:
 	UITheme.animate_enter(_bottom_dock, 0.08, 0.24)
 
 
+func _cycle_gamepad_style() -> void:
+	var cur := InputManager.gamepad_style
+	var idx := STYLE_CYCLE.find(cur)
+	var next_style: String = STYLE_CYCLE[(idx + 1) % STYLE_CYCLE.size()]
+	InputManager.set_gamepad_style(next_style, true)
+	_refresh_controller_mode_buttons()
+
+
+func _on_input_mode_changed(mode: String) -> void:
+	_refresh_controller_mode_buttons()
+	if mode == "phone" and not _pairing_panel.visible:
+		_pairing_panel.visible = true
+		UITheme.animate_enter(_pairing_panel, 0.0, 0.22)
+	elif mode != "phone":
+		_pairing_panel.visible = false
+
+
 func _on_phone_mode_changed(use_phone: bool) -> void:
 	_refresh_controller_mode_buttons()
 	if use_phone and not _pairing_panel.visible:
@@ -238,16 +336,82 @@ func _on_phone_mode_changed(use_phone: bool) -> void:
 		_pairing_panel.visible = false
 
 
+func _get_gamepad_label(style: String, active_or_connected: bool) -> String:
+	var prefix := "● " if active_or_connected else ""
+	match style:
+		"xbox":
+			return "%sXbox Controller" % prefix
+		"switch":
+			return "%sSwitch Pro" % prefix
+		_:
+			return "%sPS5 Controller" % prefix
+
+
+func _get_style_pill_text(style: String) -> String:
+	match style:
+		"xbox":
+			return "Xbox · AXBY"
+		"switch":
+			return "Switch · BYAX"
+		_:
+			return "PS5 · ✕□○△"
+
+
 func _refresh_controller_mode_buttons() -> void:
-	if _kb_mode_btn == null or _phone_mode_btn == null:
+	if _kb_mode_btn == null or _gamepad_mode_btn == null or _phone_mode_btn == null:
 		return
-	var phone_active := PhoneController.use_phone_controller
-	UITheme.style_secondary_pill(_kb_mode_btn, not phone_active, 13)
+	var cur_mode := InputManager.input_mode
+	var kb_active := (cur_mode == "keyboard")
+	var gp_active := (cur_mode == "gamepad")
+	var phone_active := (cur_mode == "phone")
+
+	UITheme.style_secondary_pill(_kb_mode_btn, kb_active, 13)
+	UITheme.style_secondary_pill(_gamepad_mode_btn, gp_active, 13)
 	UITheme.style_secondary_pill(_phone_mode_btn, phone_active, 13)
+
+	if gp_active or InputManager.gamepad_connected:
+		_gamepad_mode_btn.text = _get_gamepad_label(InputManager.gamepad_style, true)
+		_gamepad_style_btn.visible = true
+		_gamepad_style_btn.text = _get_style_pill_text(InputManager.gamepad_style)
+		UITheme.style_secondary_pill(_gamepad_style_btn, false, 12)
+	else:
+		_gamepad_mode_btn.text = "Controller"
+		_gamepad_style_btn.visible = false
+
 	if PhoneController.is_connected:
 		_phone_mode_btn.text = "● iPhone Connected"
 	else:
 		_phone_mode_btn.text = "iPhone Controller"
+
+
+func _refresh_ascent_mode_ui() -> void:
+	if _pilgrim_btn == null or _purist_btn == null or _mode_caption_label == null:
+		return
+	var is_purist := GameState.is_purist_mode()
+	UITheme.style_secondary_pill(_pilgrim_btn, not is_purist, 13)
+	UITheme.style_secondary_pill(_purist_btn, is_purist, 13)
+	if is_purist:
+		_mode_caption_label.text = "Only Up! — Zero Shrines, Zero Rewind, Crown Prestige"
+		_mode_caption_label.add_theme_color_override("font_color", UITheme.ACCENT_AMBER)
+	else:
+		_mode_caption_label.text = "Shrines + 30s Rewind"
+		_mode_caption_label.add_theme_color_override("font_color", UITheme.INK_SECONDARY)
+
+
+func _on_ui_nav_pressed(dir: int) -> void:
+	if not visible or input_blocked:
+		return
+	var cur_idx := ORDER.find(_selected_id)
+	if cur_idx < 0:
+		cur_idx = 0
+	var next_idx := (cur_idx + dir + ORDER.size()) % ORDER.size()
+	_select_character(ORDER[next_idx], true)
+
+
+func _on_ui_confirm_pressed() -> void:
+	if not visible or input_blocked:
+		return
+	_on_begin_pressed()
 
 
 func _select_character(cid: String, play_sound: bool) -> void:

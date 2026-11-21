@@ -14,7 +14,7 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 		char_select: CharacterSelectUI, hud: GameHUD, pause_ui: PauseMenuUI,
 		_diorama_models: Dictionary, diorama_cam: Camera3D,
 		loading_ui: LoadingScreenUI = null, cutscene: OpeningCutscene = null,
-		guide_ui: GuideSettingsPanelUI = null) -> void:
+		guide_ui: GuideSettingsPanelUI = null, summit_ui: SummitVictoryUI = null) -> void:
 	DirAccess.make_dir_recursive_absolute(OUT_DIR)
 	print("================ SOLSTICE SPIRE GAUNTLET AUDIT ================")
 	print("[GAUNTLET] PhoneController Embedded Server listening on: %s" % PhoneController.get_active_url())
@@ -107,8 +107,14 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 	await _snap("03_world1_gameplay_hud.png")
 	var fps_w1 := await _measure_fps("World1Play")
 
-	# Shot 3b: Player-height view right before the First Giant Sun-Flower Bounce Pad + Solar Mote arc!
+	# Shot 3b: Aboard 'The Dawnbreaker' Airship Deck Spawn looking across Gangplank to Terrace & Spire!
 	hud.hide_toast_immediate()
+	var ship := get_tree().get_first_node_in_group("docked_airship")
+	if ship and ship.has_method("get_boarding_spawn"):
+		var b: Dictionary = ship.call("get_boarding_spawn")
+		await _shot_player_height(player, atmo, b["pos"], float(b["yaw"]), 10.0, "03c_airship_deck_spawn.png")
+
+	# Shot 3c: Player-height view right before the First Giant Sun-Flower Bounce Pad + Solar Mote arc!
 	await _shot_player_height(player, atmo, Vector3(13.0, 7.2, 3.0), deg_to_rad(-45.0), 12.0, "03b_first_flower_jump.png")
 
 	# Shot 11: Pause Menu UI Audit Capture (HUD faded out & toast hidden, showing updated toggles & no Change Explorer!)
@@ -162,10 +168,28 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 	review_cam.current = true
 	await _shot_vista(review_cam, atmo, Vector3(-34.0, 1094.0, 32.0), Vector3(0.0, 1082.0, 0.0), 1060.0, "09b_world6_establishing.png")
 
-	# Shot 10: Dramatic Summit Look-Down Overlook showing ALL 6 stacked worlds descending into the clouds!
+	# Shot 9c: World 4 Crystal-Glass Over-the-Void Skywalk Vertigo Look-Down (661m over all conquered realms & Valley City!)
+	spire.set_focus_world(3, false, 661.0)
+	player.visible = true
+	player.teleport_to_checkpoint(Vector3(-37.2, 661.2, -8.4), deg_to_rad(77.2))
+	review_cam.far = 2200.0
+	review_cam.fov = 72.0
+	review_cam.current = true
+	await _shot_vista(review_cam, atmo, Vector3(-34.6, 663.6, -7.2), Vector3(-42.0, 480.0, -10.5), 661.0, "09c_vertigo_overlook.png")
+	review_cam.fov = 64.0
+
+	# Shot 10: Dramatic Summit Look-Down Overlook showing ALL 6 stacked worlds + Living Valley City below!
+	spire.set_solstice_rekindled(true)
 	spire.set_focus_world(5, true)
-	await _shot_vista(review_cam, atmo, Vector3(0.0, 1096.0, 16.0), Vector3(0.0, 620.0, 0.0), 1040.0, "10_summit_lookdown.png")
+	await _shot_vista(review_cam, atmo, Vector3(0.0, 1096.0, 22.0), Vector3(0.0, 220.0, 12.0), 1040.0, "10_summit_lookdown.png")
 	var fps_summit := await _measure_fps("SummitLookdown")
+
+	# Shot 10b: Summit Victory Card with Rank Medal Crest, Badges, Leaderboard & Victory Skydive CTA!
+	if summit_ui:
+		summit_ui.show_stats(482.5, 2, 14, 11)
+		await get_tree().create_timer(0.35).timeout
+		await _snap("10b_summit_victory_card.png")
+		summit_ui.visible = false
 
 	print("[GAUNTLET FPS SUMMARY VSYNC]    Diorama=%.1f | W1=%.1f | W2=%.1f | W5=%.1f | SummitLookdown=%.1f" % [
 		fps_diorama["vsync_fps"], fps_w1["vsync_fps"], fps_w2["vsync_fps"], fps_w5["vsync_fps"], fps_summit["vsync_fps"]

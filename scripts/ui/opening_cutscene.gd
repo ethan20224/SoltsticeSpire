@@ -184,6 +184,7 @@ func start_descent(spire_world: SpireWorld, atmosphere: Node3D, diorama_root: No
 		_atmosphere.world_environment.environment.volumetric_fog_length = 85.0
 
 	_camera.current = true
+	_set_airship_docking(0.0)
 	_apply_cutscene_frame(0.0)
 
 
@@ -222,12 +223,14 @@ func skip_immediate() -> void:
 	_advancing = false
 	visible = false
 	_canvas.visible = false
+	_set_airship_docking(1.0)
 
 
 func request_continue() -> void:
 	if not _active or _advancing:
 		return
 	_advancing = true
+	_set_airship_docking(1.0)
 	AudioDirector.play_sfx("ui_click", -2.0, 1.12)
 
 	var dio_origin := _diorama_root.global_position if _diorama_root else Vector3(0.0, 0.05, 25.5)
@@ -304,9 +307,21 @@ func _apply_cutscene_frame(t_sec: float) -> void:
 		var w_idx := _spire_world.world_index_for_altitude(cam_y)
 		_spire_world.set_focus_world(w_idx, cam_y >= 1040.0, cam_y)
 		_update_realm_whisper(w_idx)
+	# Live Docking Sequence: during final 2.6s of the descent, The Dawnbreaker glides in & lowers its gangplank!
+	var dock_t := clampf((t_sec - 7.9) / 2.5, 0.0, 1.0)
+	_set_airship_docking(dock_t)
+
+
+func _set_airship_docking(t: float) -> void:
+	if not is_inside_tree():
+		return
+	var ship := get_tree().get_first_node_in_group("docked_airship")
+	if ship and ship.has_method("set_docking_progress"):
+		ship.call("set_docking_progress", t)
 
 
 func _apply_orbit_frame(orb_t: float) -> void:
+	_set_airship_docking(1.0)
 	var dio_origin := _diorama_root.global_position if _diorama_root else Vector3(0.0, 0.05, 25.5)
 	var look_target := dio_origin + Vector3(0.0, 0.82, 0.0)
 	var ramp := smoothstep(0.0, 1.2, orb_t)

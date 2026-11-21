@@ -117,6 +117,17 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_shrine(self, "w3_cp2", 2, cp2, 135.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cp2 + Vector3(-2.1, 0.0, 1.9), -30.0, STYLE, Color(1.0, 0.74, 0.34))
 
+	# SET-PIECE #3: "Rideable Soaring Origami Crane" (Glides from Twilight Teahouse Eave up to Upper Pagoda!)
+	WorldHelper.add_soaring_crane(
+		self,
+		Vector3(-28.2, 412.2, 19.5),
+		Vector3(-11.5, 427.5, 34.5),
+		Vector3(11.5, 438.2, 31.2),
+		9.5,
+		1.55
+	)
+	WorldHelper.add_world_hint(self, Vector3(-26.0, 414.2, 17.5), "SOARING ORIGAMI CRANE", "Hop aboard the Giant Crane's wings to ride across the Monsoon!")
+
 	# =========================================================================
 	# ACT 8 (412m -> 476m): Monsoon Parasol Hop & High-Speed Origami Ribbon
 	# =========================================================================
@@ -151,6 +162,11 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_box_platform(self, PAGODA, cp3, Vector3(5.6, 0.6, 5.6), Vector3(1.2, 1.0, 1.2), Vector3.ZERO, STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w3_cp3", 2, cp3, 80.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cp3 + Vector3(2.1, 0.0, -2.0), 0.0, STYLE, Color(1.0, 0.74, 0.34))
+
+	# EXPOSED OVER-THE-VOID OVERLOOK #2: Cantilevered Monsoon Prayer-Pier jutting 11m over 476m of storm air!
+	WorldHelper.add_static_box_platform(self, PAGODA, cp3 + Vector3(0.0, 0.15, -6.5), Vector3(5.4, 0.6, 5.4), Vector3(0.24, 0.72, 2.05), Vector3.ZERO, STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, cp3 + Vector3(0.0, 1.0, -3.5), cp3 + Vector3(0.0, 1.2, -10.8), 1.4, 3)
+	WorldHelper.add_world_hint(self, cp3 + Vector3(0.0, 2.1, -11.2), "CHRONICLE III — THE MONSOON PRAYERS", "Every paper crane carries a wish from 476m below. Step to the edge and look down.")
 
 	# =========================================================================
 	# ACT 9 (476m -> 540m): Upward Waterfall Thermal & Origami Sky-Sprint

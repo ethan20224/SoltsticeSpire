@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
+render_mode blend_mix, depth_draw_never, cull_disabled, unshaded;
 
 uniform vec4 crest_color : source_color = vec4(1.0, 0.97, 0.90, 1.0);
 uniform vec4 valley_color : source_color = vec4(0.56, 0.70, 0.90, 1.0);
@@ -9,6 +9,7 @@ uniform float cloud_scale : hint_range(0.002, 0.05) = 0.0085;
 uniform float billow_height : hint_range(0.5, 18.0) = 8.2;
 uniform float drift_speed : hint_range(0.0, 0.2) = 0.015;
 uniform float opacity : hint_range(0.1, 1.0) = 0.96;
+uniform float window_radius = 290.0;
 
 varying float v_height_norm;
 varying float v_sun_lit;
@@ -63,7 +64,7 @@ void vertex() {
 
 void fragment() {
 	float radial = length(v_world_xz);
-	float dist_fade = 1.0 - smoothstep(320.0, 740.0, radial);
+	float dist_fade = 1.0 - smoothstep(680.0, 1340.0, radial);
 
 	float crest = smoothstep(0.30, 0.80, v_height_norm);
 	vec3 cloud_col = mix(valley_color.rgb, crest_color.rgb, clamp(crest * 0.72 + v_sun_lit * 0.34, 0.0, 1.0));
@@ -75,6 +76,13 @@ void fragment() {
 	cloud_col = mix(cloud_col, horizon_glow_color.rgb, sun_horiz * rim_mask * 0.48);
 	cloud_col += horizon_glow_color.rgb * pow(crest, 2.2) * v_sun_lit * 0.14;
 
+	// Fluffy billowy cloud-window opening around the Spire + natural dappled cloud gaps farther out
+	float window_edge = radial + (v_height_norm - 0.52) * 95.0;
+	float spire_window = smoothstep(window_radius * 0.52, window_radius, window_edge);
+	float dappled_gaps = smoothstep(0.26, 0.56, v_height_norm);
+	float rim_gold = (1.0 - spire_window) * spire_window * 2.2;
+	cloud_col = mix(cloud_col, crest_color.rgb, clamp(rim_gold * 0.55, 0.0, 0.45));
+
 	ALBEDO = cloud_col;
-	ALPHA = clamp(dist_fade * opacity * smoothstep(0.14, 0.44, v_height_norm + 0.18), 0.0, 1.0);
+	ALPHA = clamp(dist_fade * opacity * spire_window * dappled_gaps, 0.0, 1.0);
 }

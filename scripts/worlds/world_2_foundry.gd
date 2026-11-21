@@ -87,11 +87,20 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	var cw1 := Vector3(12.5, 198.0, -24.5)
 	WorldHelper.add_static_box_platform(self, CATWALK, cw1, Vector3(3.2, 0.5, 5.4), Vector3.ONE, Vector3(0.0, 62.0, 0.0), STYLE, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cw1 + Vector3(1.1, 0.0, -1.6), 62.0, STYLE, Color(1.0, 0.62, 0.20))
+	WorldHelper.add_world_hint(self, Vector3(8.5, 200.4, -26.2), "MUSICAL BELL WALL-RUN", "Jump along Bronze Bells to Wall-Run & {jump} Wall-Kick!")
 	WorldHelper.add_wall_run(self, BELL, Vector3(2.5, 201.0, -29.2), Vector3(0.0, 8.0, 0.0), Vector3(8.8, 4.4, 1.0), true, 0, audit)
 	WorldHelper.add_solar_mote_arc(self, cw1 + Vector3(-2.0, 1.0, -1.5), Vector3(-8.5, 202.8, -26.0), 2.4, 4)
 	var cw2 := Vector3(-8.5, 202.0, -26.0)
 	WorldHelper.add_static_box_platform(self, CATWALK, cw2, Vector3(3.2, 0.5, 5.4), Vector3.ONE, Vector3(0.0, 105.0, 0.0), STYLE, audit)
 	WorldHelper.add_lamp_post(self, cw2 + Vector3(-1.1, 0.0, -1.5), 115.0, Color(1.0, 0.70, 0.28), 3.6, 11.0)
+
+	# SET-PIECE / PRO SHORTCUT #2: "The Foundry Swinging Sky-Beam" (Precarious swinging brass girder + high-pressure vent skip!)
+	WorldHelper.add_swinging_bridge(self, Vector3(-18.5, 204.2, -16.5), -42.0, 11.2, 1.45, 2.0, "THE FOUNDRY SKY-BEAM", "Hold Your Nerve!")
+	WorldHelper.add_bounce_pad(self, VENT, Vector3(-24.5, 207.0, -7.5), 25.8, 2.3, Vector3(2.2, 0.0, 8.2), STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-24.5, 208.0, -7.5), Vector3(-21.0, 223.5, 8.5), 4.0, 4)
+	WorldHelper.add_tether_orb(self, Vector3(-21.0, 223.5, 8.5), [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-21.0, 223.5, 8.5), Vector3(-15.5, 236.8, 22.5), 3.2, 4)
+	WorldHelper.add_shortcut_beacon(self, Vector3(-15.5, 236.0, 22.5), 130.0, "FOUNDRY SKY-BEAM!", "BELL-FORGE PRO SKIP")
 
 	WorldHelper.add_sun_shard(self, "w2_s1", Vector3(2.5, 205.5, -27.5))
 
@@ -144,6 +153,11 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_box_platform(self, CATWALK, cp3, Vector3(3.4, 0.5, 5.6), Vector3(1.5, 1.2, 1.3), Vector3(0.0, 35.0, 0.0), STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w2_cp3", 1, cp3, 210.0, false, false, audit)
 	WorldHelper.add_lamp_post(self, cp3 + Vector3(-1.6, 0.0, -1.4), 25.0, Color(1.0, 0.70, 0.28), 3.6, 12.0)
+
+	# EXPOSED OVER-THE-VOID OVERLOOK #1: Narrow Brass Foundry Beam jutting 11.6m over 292m of sheer sky!
+	WorldHelper.add_static_box_platform(self, CATWALK, cp3 + Vector3(-5.8, 0.15, -4.7), Vector3(3.2, 0.5, 5.4), Vector3(0.36, 0.85, 2.15), Vector3(0.0, 50.9, 0.0), STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, cp3 + Vector3(-2.8, 1.0, -2.3), cp3 + Vector3(-9.8, 1.2, -8.0), 1.4, 3)
+	WorldHelper.add_world_hint(self, cp3 + Vector3(-10.2, 2.1, -8.3), "CHRONICLE II — THE SILENT FOUNDRY", "When the Sun-Heart cracked, the bell-smiths fled. Look down — the valley darkens.")
 
 	# =========================================================================
 	# ACT 6 (293m -> 355m): The Great Carillon Finale Sprint

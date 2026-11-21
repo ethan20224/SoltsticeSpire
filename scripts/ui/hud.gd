@@ -2,10 +2,81 @@ extends Control
 class_name GameHUD
 ## Clean, Tactile Indie HUD crafted with OFL Nunito typography & surgical visual restraint.
 ## Borderless centered Realm Arrival banner over a soft radial scrim (2.5s auto-fade),
-## keycap bar auto-fading after 6.0s, crisp top-left readout without pill clutter, zero harsh outlines.
+## keycap bar auto-fading after 6.0s with live InputManager glyphs (Keyboard / PS5 / Xbox / Switch Pro / iPhone),
+## crisp top-left readout with Purist Mode badge, and a subtle edge-of-screen wind-rush vignette during steep falls.
 
+
+class WindRushVignetteControl extends Control:
+	var intensity: float = 0.0
+	var focus_tint: float = 0.0
+	var _time: float = 0.0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func set_intensity(val: float, delta: float, focus_val: float = 0.0) -> void:
+		_time += delta
+		var next_i := clampf(val, 0.0, 1.0)
+		var next_f := clampf(focus_val, 0.0, 1.0)
+		if absf(next_i - intensity) > 0.002 or next_i > 0.005 or absf(next_f - focus_tint) > 0.002 or next_f > 0.005:
+			intensity = next_i
+			focus_tint = next_f
+			queue_redraw()
+
+	func _draw() -> void:
+		var eff := maxf(intensity, focus_tint)
+		if eff <= 0.005:
+			return
+		var sz := size
+		if sz.x <= 2.0 or sz.y <= 2.0:
+			return
+		var band_x := sz.x * (0.14 if focus_tint > intensity else 0.12)
+		var band_y := sz.y * (0.15 if focus_tint > intensity else 0.13)
+		var pulse := 0.88 + 0.12 * sin(_time * (8.0 if focus_tint > 0.1 else 18.0))
+		var edge_a := eff * (0.38 if focus_tint > intensity else 0.34) * pulse
+		var base_rgb := Color(0.92, 0.96, 1.0).lerp(Color(0.54, 0.94, 1.0), focus_tint)
+		var edge_col := Color(base_rgb.r, base_rgb.g, base_rgb.b, edge_a)
+		var zero_col := Color(base_rgb.r, base_rgb.g, base_rgb.b, 0.0)
+
+		# Left border gradient
+		draw_polygon(
+			PackedVector2Array([Vector2(0, 0), Vector2(band_x, 0), Vector2(band_x, sz.y), Vector2(0, sz.y)]),
+			PackedColorArray([edge_col, zero_col, zero_col, edge_col])
+		)
+		# Right border gradient
+		draw_polygon(
+			PackedVector2Array([Vector2(sz.x - band_x, 0), Vector2(sz.x, 0), Vector2(sz.x, sz.y), Vector2(sz.x - band_x, sz.y)]),
+			PackedColorArray([zero_col, edge_col, edge_col, zero_col])
+		)
+		# Top border gradient
+		draw_polygon(
+			PackedVector2Array([Vector2(0, 0), Vector2(sz.x, 0), Vector2(sz.x, band_y), Vector2(0, band_y)]),
+			PackedColorArray([edge_col, edge_col, zero_col, zero_col])
+		)
+		# Bottom border gradient
+		draw_polygon(
+			PackedVector2Array([Vector2(0, sz.y - band_y), Vector2(sz.x, sz.y - band_y), Vector2(sz.x, sz.y), Vector2(0, sz.y)]),
+			PackedColorArray([zero_col, zero_col, edge_col, edge_col])
+		)
+
+		# Subtle peripheral upward wind-streak hairlines along left & right edges
+		var center := sz * 0.5
+		var max_r := center.length()
+		for i in range(18):
+			var ang := float(i) * (TAU / 18.0) + sin(_time * 4.5 + float(i)) * 0.04
+			var dir := Vector2(cos(ang), sin(ang))
+			var p_in := center + dir * (max_r * (0.68 - 0.04 * sin(_time * 14.0 + float(i) * 1.7)))
+			var p_out := center + dir * (max_r * 0.98)
+			var streak_a := intensity * (0.14 + 0.08 * sin(_time * 16.0 + float(i) * 2.3))
+			draw_line(p_in, p_out, Color(1.0, 0.97, 0.90, streak_a), 1.4, true)
+
+
+var _wind_vignette: WindRushVignetteControl
+var _wind_vignette_alpha: float = 0.0
+var _focus_vignette_alpha: float = 0.0
 var _alt_label: Label
 var _world_label: Label
+var _purist_badge: PanelContainer
 var _alt_bar: ProgressBar
 var _timer_label: Label
 var _falls_label: Label
@@ -22,7 +93,11 @@ var _toast_root: Control
 var _toast_badge_label: Label
 var _toast_title: Label
 var _toast_sub: Label
+var _toast_story: Label
 var _toast_timer: float = 0.0
+
+var _skydive_center: CenterContainer
+var _skydive_label: Label
 
 var _callout_center: CenterContainer
 var _callout_pill: PanelContainer
@@ -60,6 +135,20 @@ func _ready() -> void:
 	GameState.rewind_window_changed.connect(_on_rewind_window_changed)
 	GameState.gameplay_callout.connect(_on_gameplay_callout)
 	GameState.fall_recorded.connect(_on_falls)
+	GameState.game_mode_changed.connect(func(_m: String):
+		_refresh_purist_badge()
+		_refresh_control_hints(false)
+	)
+	GameState.game_started.connect(func():
+		_refresh_purist_badge()
+		_refresh_control_hints(true)
+	)
+	InputManager.input_mode_changed.connect(func(_m: String):
+		_refresh_control_hints(true)
+	)
+	InputManager.gamepad_changed.connect(func(_c: bool, _n: String, _s: String):
+		_refresh_control_hints(true)
+	)
 	PhoneController.connection_changed.connect(func(_c: bool, _cnt: int, _dev: String):
 		_refresh_control_hints(true)
 	)
@@ -69,22 +158,46 @@ func _ready() -> void:
 
 
 func _build_hud() -> void:
+	# Subtle edge-of-screen radial/border wind-rush vignette during steep falls (vel.y < -18.0)
+	_wind_vignette = WindRushVignetteControl.new()
+	_wind_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_wind_vignette)
+
 	# Subtle soft corner scrim behind Top-Left Altitude Readout (clean contrast on bright sky!)
-	var tl_scrim := UITheme.make_radial_scrim(Vector2(340, 150), Vector2(0.22, 0.30), 0.44, Color(0.05, 0.04, 0.07))
+	var tl_scrim := UITheme.make_radial_scrim(Vector2(380, 150), Vector2(0.22, 0.30), 0.44, Color(0.05, 0.04, 0.07))
 	tl_scrim.position = Vector2(0, 0)
 	add_child(tl_scrim)
 
-	# TOP-LEFT: Clean tracked realm eyebrow + heavy altitude readout (NO pill eyebrow clutter!)
+	# TOP-LEFT: Clean tracked realm eyebrow + 🔥 PURIST MODE badge pill + heavy altitude readout
 	var tl := VBoxContainer.new()
 	tl.position = Vector2(30, 24)
 	tl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tl.add_theme_constant_override("separation", 3)
 	add_child(tl)
 
+	var world_row := HBoxContainer.new()
+	world_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	world_row.add_theme_constant_override("separation", 8)
+	tl.add_child(world_row)
+
 	_world_label = Label.new()
 	_world_label.text = "The Sunken Conservatory"
 	UITheme.apply_font(_world_label, "semibold", 13, UITheme.INK_SECONDARY, 0.35, 1)
-	tl.add_child(_world_label)
+	world_row.add_child(_world_label)
+
+	_purist_badge = PanelContainer.new()
+	_purist_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_purist_badge.add_theme_stylebox_override("panel", UITheme.glass_box(
+		Color(0.22, 0.08, 0.04, 0.90),
+		Color(1.0, 0.56, 0.22, 0.92),
+		999, 10, 2, 1
+	))
+	var purist_lbl := Label.new()
+	purist_lbl.text = "🔥 PURIST MODE"
+	UITheme.apply_font(purist_lbl, "extrabold", 11, Color(1.0, 0.78, 0.40))
+	_purist_badge.add_child(purist_lbl)
+	world_row.add_child(_purist_badge)
+	_refresh_purist_badge()
 
 	var alt_row := HBoxContainer.new()
 	alt_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -232,11 +345,11 @@ func _build_hud() -> void:
 	_whisper_row.add_theme_constant_override("separation", 18)
 	_whisper_panel.add_child(_whisper_row)
 
-	# BORDERLESS CENTERED REALM ARRIVAL BANNER OVER SOFT RADIAL SCRIM (no clunky dark box!)
+	# BORDERLESS CENTERED REALM ARRIVAL BANNER OVER SOFT RADIAL SCRIM (with 1-line story beat!)
 	_toast_root = Control.new()
 	_toast_root.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_toast_root.offset_top = 42
-	_toast_root.offset_bottom = 178
+	_toast_root.offset_top = 36
+	_toast_root.offset_bottom = 194
 	_toast_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast_root.modulate.a = 0.0
 	add_child(_toast_root)
@@ -247,18 +360,18 @@ func _build_hud() -> void:
 	_toast_root.add_child(toast_center)
 
 	var scrim_holder := Control.new()
-	scrim_holder.custom_minimum_size = Vector2(560, 126)
+	scrim_holder.custom_minimum_size = Vector2(680, 152)
 	scrim_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toast_center.add_child(scrim_holder)
 
-	var toast_scrim := UITheme.make_radial_scrim(Vector2(560, 126), Vector2(0.5, 0.5), 0.50, Color(0.05, 0.04, 0.07))
+	var toast_scrim := UITheme.make_radial_scrim(Vector2(680, 152), Vector2(0.5, 0.5), 0.54, Color(0.05, 0.04, 0.07))
 	scrim_holder.add_child(toast_scrim)
 
 	var tv := VBoxContainer.new()
 	tv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tv.add_theme_constant_override("separation", 4)
+	tv.add_theme_constant_override("separation", 3)
 	scrim_holder.add_child(tv)
 
 	var badge_c := CenterContainer.new()
@@ -270,13 +383,42 @@ func _build_hud() -> void:
 
 	_toast_title = Label.new()
 	_toast_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UITheme.apply_font(_toast_title, "heavy", 32, UITheme.INK_PRIMARY, 0.36, 2)
+	UITheme.apply_font(_toast_title, "heavy", 31, UITheme.INK_PRIMARY, 0.36, 2)
 	tv.add_child(_toast_title)
 
 	_toast_sub = Label.new()
 	_toast_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UITheme.apply_font(_toast_sub, "semibold", 14, Color(0.95, 0.91, 0.85, 0.92), 0.34, 1)
 	tv.add_child(_toast_sub)
+
+	_toast_story = Label.new()
+	_toast_story.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast_story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	UITheme.apply_font(_toast_story, "semibold", 12, Color(1.0, 0.88, 0.58, 0.94), 0.36, 1)
+	tv.add_child(_toast_story)
+
+	# VICTORY SKYDIVE STEERING BAR (bottom-center during 1,085m -> 0m Victory Skydive!)
+	_skydive_center = CenterContainer.new()
+	_skydive_center.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_skydive_center.offset_top = -54
+	_skydive_center.offset_bottom = -16
+	_skydive_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_skydive_center.visible = false
+	add_child(_skydive_center)
+
+	var skydive_pill := PanelContainer.new()
+	skydive_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	skydive_pill.add_theme_stylebox_override("panel", UITheme.glass_box(
+		Color(0.11, 0.08, 0.05, 0.88),
+		Color(1.0, 0.82, 0.36, 0.88),
+		999, 22, 7, 1
+	))
+	_skydive_center.add_child(skydive_pill)
+
+	_skydive_label = Label.new()
+	_skydive_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.apply_font(_skydive_label, "bold", 13, Color(1.0, 0.92, 0.62))
+	skydive_pill.add_child(_skydive_label)
 
 	# PUNCHY UPPER-CENTER DOPAMINE CALLOUT BANNER
 	_callout_center = CenterContainer.new()
@@ -320,7 +462,7 @@ func _build_hud() -> void:
 	_tether_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tether_reticle.add_theme_stylebox_override("panel", UITheme.glass_box(Color(0.08, 0.16, 0.24, 0.86), Color(0.45, 0.94, 1.0, 0.92), 999, 14, 6, 2))
 	_tether_label = Label.new()
-	_tether_label.text = "E / RMB  Snap"
+	_tether_label.text = "%s  Snap" % InputManager.get_glyph("dash")
 	UITheme.apply_font(_tether_label, "bold", 12, Color(0.68, 0.98, 1.0))
 	_tether_reticle.add_child(_tether_label)
 	add_child(_tether_reticle)
@@ -328,44 +470,73 @@ func _build_hud() -> void:
 	_refresh_control_hints(false)
 
 
+func _refresh_purist_badge() -> void:
+	if _purist_badge != null:
+		_purist_badge.visible = GameState.is_purist_mode()
+
+
 func _refresh_control_hints(reset_timer: bool) -> void:
 	if _whisper_row == null:
 		return
 	for ch in _whisper_row.get_children():
 		ch.queue_free()
-	var use_phone := PhoneController.is_connected or PhoneController.use_phone_controller
-	var pairs := (
-		[["✕ / R1", "Jump / Flutter"], ["○ / L2", "Slide / Sky-Dive"], ["□ / R2", "Air-Dash / Orb"], ["△", "30s Rewind"], ["≡", "Menu"]]
-		if use_phone else
-		[["Space", "Jump / Flutter"], ["C", "Slide / Sky-Dive"], ["E / RMB", "Air-Dash / Orb"], ["R", "30s Rewind"], ["Esc", "Menu"]]
-	)
+
+	var pairs: Array = [
+		[InputManager.get_glyph("jump"), "Jump / Double-Jump"],
+		[InputManager.get_glyph("dash"), "Air-Dash / Orb"],
+		[InputManager.get_glyph("focus"), "Sky Focus (Slow-Mo)"],
+		[InputManager.get_glyph("slide"), "Slide / Sky-Dive"],
+		[InputManager.get_glyph("rewind"), "30s Rewind"],
+		[InputManager.get_glyph("pause"), "Menu"],
+	]
 	for pair in pairs:
 		var pair_h := HBoxContainer.new()
 		pair_h.add_theme_constant_override("separation", 6)
 		var kl := Label.new()
-		kl.text = pair[0]
+		kl.text = str(pair[0])
 		UITheme.apply_font(kl, "bold", 12, UITheme.ACCENT_AMBER)
 		var vl := Label.new()
-		vl.text = pair[1]
+		vl.text = str(pair[1])
 		UITheme.apply_font(vl, "medium", 12, UITheme.INK_SECONDARY)
 		pair_h.add_child(kl)
 		pair_h.add_child(vl)
 		_whisper_row.add_child(pair_h)
-	if _tether_label:
-		_tether_label.text = "□ / R2  Snap" if use_phone else "E / RMB  Snap"
+	_update_tether_reticle()
 	_update_rewind_text()
+	_update_skydive_text()
+	if _solar_charged:
+		_flow_label.text = "✦ SKY FOCUS READY · %s (Mid-Air)" % InputManager.get_glyph("focus")
 	if reset_timer:
 		_whisper_timer = 6.0
 		_whisper_panel.modulate.a = 1.0
 
 
+func _update_skydive_text() -> void:
+	if _skydive_label != null:
+		_skydive_label.text = "✦ VICTORY SKYDIVE · Steer through the Golden Rings  ·  Hold %s to Glide  ·  Hold %s for Speed" % [
+			InputManager.get_glyph("jump"),
+			InputManager.get_glyph("slide"),
+		]
+
+
+func _update_tether_reticle() -> void:
+	if _tether_label != null:
+		_tether_label.text = "%s  Snap" % InputManager.get_glyph("dash")
+
+
 func show_world_toast(idx: int, wname: String, sub: String) -> void:
 	var numerals: Array[String] = ["Realm I", "Realm II", "Realm III", "Realm IV", "Realm V", "Realm VI"]
-	_toast_badge_label.text = numerals[clampi(idx, 0, 5)]
+	var c_idx := clampi(idx, 0, 5)
+	_toast_badge_label.text = numerals[c_idx]
 	_toast_title.text = wname
 	_toast_sub.text = sub
+	if _toast_story != null:
+		var story_txt: String = str(GameState.WORLDS[c_idx].get("story", ""))
+		_toast_story.text = story_txt
+		_toast_story.visible = not story_txt.is_empty()
 	_world_label.text = wname
-	_toast_timer = 2.5
+	_refresh_purist_badge()
+	_toast_timer = 4.2
 	_toast_root.visible = true
 	_toast_root.modulate.a = 1.0
 	_world_label.modulate.a = 0.0
@@ -403,21 +574,23 @@ func _on_world_entered(idx: int, wname: String, sub: String) -> void:
 
 func _on_flow(fv: float, streak: int) -> void:
 	_flow_bar.value = fv
-	if _solar_charged:
-		_flow_label.text = "✦ SOLAR CHARGE · BONUS DASH"
+	if player_ref and is_instance_valid(player_ref) and player_ref.is_sky_focus_active():
+		_flow_label.text = "✦ SKY FOCUS · SLOW-MOTION"
+	elif _solar_charged:
+		_flow_label.text = "✦ SKY FOCUS READY · %s (Mid-Air)" % InputManager.get_glyph("focus")
 	else:
-		_flow_label.text = ("FLOW x%d" % streak) if streak > 0 else "MOMENTUM"
+		_flow_label.text = ("RESONANCE x%d" % streak) if streak > 0 else "SKY RESONANCE"
 
 
 func _on_solar_charge_changed(charged: bool) -> void:
 	_solar_charged = charged
 	if charged:
-		_flow_label.text = "✦ SOLAR CHARGE · BONUS DASH"
-		_flow_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.42))
+		_flow_label.text = "✦ SKY FOCUS READY · %s (Mid-Air)" % InputManager.get_glyph("focus")
+		_flow_label.add_theme_color_override("font_color", Color(0.62, 0.96, 1.0))
 		if _flow_fill_style:
-			_flow_fill_style.bg_color = Color(1.0, 0.92, 0.40)
+			_flow_fill_style.bg_color = Color(0.56, 0.94, 1.0)
 	else:
-		_flow_label.text = ("FLOW x%d" % GameState.current_streak) if GameState.current_streak > 0 else "MOMENTUM"
+		_flow_label.text = ("RESONANCE x%d" % GameState.current_streak) if GameState.current_streak > 0 else "SKY RESONANCE"
 		_flow_label.add_theme_color_override("font_color", UITheme.ACCENT_AMBER)
 		if _flow_fill_style:
 			_flow_fill_style.bg_color = UITheme.ACCENT_AMBER
@@ -439,12 +612,8 @@ func _on_falls(cnt: int) -> void:
 func _update_rewind_text() -> void:
 	if _rewind_label == null:
 		return
-	var use_phone := PhoneController.is_connected or PhoneController.use_phone_controller
 	var secs := int(ceil(_rewind_rem))
-	if use_phone:
-		_rewind_label.text = "⟲  △ · Rewind to Shrine  (%ds)" % secs
-	else:
-		_rewind_label.text = "⟲  R · Rewind to Shrine  (%ds)" % secs
+	_rewind_label.text = "⟲  %s · Rewind to Shrine  (%ds)" % [InputManager.get_glyph("rewind"), secs]
 
 
 func _on_rewind_window_changed(remaining_sec: float, active: bool) -> void:
@@ -501,39 +670,62 @@ func _process(delta: float) -> void:
 		return
 	_timer_label.text = GameState.format_time(GameState.run_time)
 
-	var target_flow_a := 1.0 if (GameState.current_flow > 0.06 or _solar_charged) else 0.0
-	_flow_container.modulate.a = lerpf(_flow_container.modulate.a, target_flow_a, clampf(delta * 8.0, 0.0, 1.0))
+	var real_dt := delta / maxf(Engine.time_scale, 0.05)
+	var focus_now := player_ref != null and is_instance_valid(player_ref) and player_ref.is_sky_focus_active()
+	var target_flow_a := 1.0 if (GameState.current_flow > 0.06 or _solar_charged or focus_now) else 0.0
+	if GameState.victory_skydive_active:
+		target_flow_a = 0.0
+	_flow_container.modulate.a = lerpf(_flow_container.modulate.a, target_flow_a, clampf(real_dt * 8.0, 0.0, 1.0))
+	if focus_now:
+		_flow_label.text = "✦ SKY FOCUS · SLOW-MOTION"
+		_flow_label.add_theme_color_override("font_color", Color(0.62, 0.96, 1.0))
+
+	if _skydive_center:
+		_skydive_center.visible = GameState.victory_skydive_active
+		if GameState.victory_skydive_active:
+			_whisper_panel.modulate.a = 0.0
 
 	if _rewind_active and _rewind_center.visible:
 		if _rewind_rem < 8.0:
-			_rewind_pulse_t += delta
+			_rewind_pulse_t += real_dt
 			_rewind_pill.modulate.a = 0.65 + 0.35 * sin(_rewind_pulse_t * 7.5)
 		else:
 			_rewind_pill.modulate.a = 1.0
 
 	if _toast_timer > 0.0:
-		_toast_timer = maxf(0.0, _toast_timer - delta)
-		var a := minf(1.0, _toast_timer * 1.8) if _toast_timer < 0.6 else 1.0
+		_toast_timer = maxf(0.0, _toast_timer - real_dt)
+		var a := minf(1.0, _toast_timer * 1.6) if _toast_timer < 0.7 else 1.0
 		_toast_root.modulate.a = clampf(a, 0.0, 1.0)
 		_world_label.modulate.a = clampf(1.0 - _toast_root.modulate.a, 0.0, 1.0)
 	else:
 		_toast_root.modulate.a = 0.0
 		_world_label.modulate.a = 1.0
 
-	if _whisper_timer > 0.0:
-		_whisper_timer -= delta
-		if _whisper_timer < 1.5:
-			_whisper_panel.modulate.a = clampf(_whisper_timer / 1.5, 0.0, 1.0)
-	else:
-		_whisper_panel.modulate.a = 0.0
+	if not GameState.victory_skydive_active:
+		if _whisper_timer > 0.0:
+			_whisper_timer -= real_dt
+			if _whisper_timer < 1.5:
+				_whisper_panel.modulate.a = clampf(_whisper_timer / 1.5, 0.0, 1.0)
+		else:
+			_whisper_panel.modulate.a = 0.0
 
+	var target_wind_v := 0.0
 	if player_ref and is_instance_valid(player_ref):
+		if not player_ref.is_on_floor() and player_ref.velocity.y < -18.0:
+			target_wind_v = clampf((-player_ref.velocity.y - 18.0) / 18.0, 0.0, 1.0)
+
 		var orb := player_ref.get_hovered_tether_orb()
 		PhoneController.set_orb_locked(orb != null)
 		var cam := get_viewport().get_camera_3d()
 		if orb and cam and not cam.is_position_behind(orb.global_position):
 			var sp := cam.unproject_position(orb.global_position)
+			_update_tether_reticle()
 			_tether_reticle.visible = true
 			_tether_reticle.position = sp - _tether_reticle.size * 0.5 + Vector2(0.0, -34.0)
 		else:
 			_tether_reticle.visible = false
+
+	_wind_vignette_alpha = lerpf(_wind_vignette_alpha, target_wind_v, clampf(real_dt * 8.0, 0.0, 1.0))
+	_focus_vignette_alpha = lerpf(_focus_vignette_alpha, 1.0 if focus_now else 0.0, clampf(real_dt * 12.0, 0.0, 1.0))
+	if _wind_vignette:
+		_wind_vignette.set_intensity(_wind_vignette_alpha, real_dt, _focus_vignette_alpha)

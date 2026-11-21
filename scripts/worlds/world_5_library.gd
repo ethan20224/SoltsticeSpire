@@ -145,6 +145,11 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_shrine(self, "w5_cp3", 4, cp3, 168.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, cp3 + Vector3(-1.8, 0.0, -1.4), 62.0, STYLE, Color(1.0, 0.72, 0.30))
 
+	# EXPOSED OVER-THE-VOID OVERLOOK #4: Aurora Reading Plank jutting 11.2m over 857m of starry abyss!
+	WorldHelper.add_static_box_platform(self, SHELF, cp3 + Vector3(-6.4, 0.15, -2.75), Vector3(5.2, 0.5, 4.4), Vector3(0.25, 0.72, 2.55), Vector3(0.0, 66.8, 0.0), STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, cp3 + Vector3(-3.0, 1.0, -1.3), cp3 + Vector3(-10.4, 1.2, -4.45), 1.4, 3)
+	WorldHelper.add_world_hint(self, cp3 + Vector3(-10.8, 2.1, -4.65), "CHRONICLE V — THE WHALE'S VIGIL", "857m above home. The Cloud-Whale kept the last aurora alive until you climbed.")
+
 	# =========================================================================
 	# ACT 15 (857m -> 920m): Aurora Dream Ascent to the Stratosphere
 	# =========================================================================

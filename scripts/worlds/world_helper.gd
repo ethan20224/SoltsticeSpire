@@ -1215,3 +1215,86 @@ static func add_landmark(parent: Node3D, glb_path: String, pos: Vector3,
 static func spiral_pt(angle_deg: float, radius: float, y: float) -> Vector3:
 	var rad := deg_to_rad(angle_deg)
 	return Vector3(sin(rad) * radius, y, cos(rad) * radius)
+
+
+static func add_soaring_crane(parent: Node3D, start_p: Vector3, mid_p: Vector3, end_p: Vector3,
+		flight_dur: float = 9.5, scale_v: float = 1.55) -> SoaringCrane:
+	var sc := SoaringCrane.new()
+	sc.start_pos = start_p
+	sc.mid_pos = mid_p
+	sc.end_pos = end_p
+	sc.flight_duration = flight_dur
+	sc.crane_scale = scale_v
+	parent.add_child(sc)
+	return sc
+
+
+static func add_swinging_bridge(parent: Node3D, pos: Vector3, rot_y_deg: float,
+		length_m: float = 11.0, width_m: float = 1.45, sway_amp: float = 2.0,
+		title: String = "THE FOUNDRY SKY-BEAM", sub: String = "Hold Your Nerve!") -> SwingingBridge:
+	var sb := SwingingBridge.new()
+	sb.position = pos
+	sb.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	sb.bridge_length = length_m
+	sb.bridge_width = width_m
+	sb.sway_amplitude = sway_amp
+	sb.callout_title = title
+	sb.callout_subtitle = sub
+	parent.add_child(sb)
+	return sb
+
+
+static func add_shortcut_beacon(parent: Node3D, pos: Vector3, rot_y_deg: float,
+		title: String, sub: String, is_takeoff: bool = false) -> ShortcutBeacon:
+	var b := ShortcutBeacon.new()
+	b.position = pos
+	b.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	b.callout_title = title
+	b.callout_subtitle = sub
+	b.is_takeoff_marker = is_takeoff
+	parent.add_child(b)
+	return b
+
+
+static func add_world_hint(parent: Node3D, pos: Vector3, title: String, template_str: String) -> WorldHint:
+	var wh := WorldHint.new()
+	wh.position = pos
+	wh.hint_title = title
+	wh.hint_template = template_str
+	parent.add_child(wh)
+	return wh
+
+
+static func add_summit_celebration(parent: Node3D, pos: Vector3) -> SummitCelebration:
+	var sc := SummitCelebration.new()
+	sc.position = pos
+	parent.add_child(sc)
+	return sc
+
+
+static func add_docked_airship(parent: Node3D, pos: Vector3, rot_y_deg: float = -18.0) -> DockedAirship:
+	var ship := DockedAirship.new()
+	ship.position = pos
+	ship.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	parent.add_child(ship)
+	return ship
+
+
+static func set_realm_lod_mode(root: Node, is_distant: bool) -> void:
+	## Keeps ALL conquered lower realms 100% visible for jaw-dropping vertigo depth while
+	## turning off shadow casting & distant omni-lights/particles on realms 2+ tiers below!
+	if root is GeometryInstance3D:
+		var gi := root as GeometryInstance3D
+		if is_distant:
+			gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		else:
+			if gi is MeshInstance3D:
+				var mi := gi as MeshInstance3D
+				if mi.mesh and mi.mesh.get_aabb().size.length() >= 0.72:
+					gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	elif root is OmniLight3D:
+		(root as OmniLight3D).visible = not is_distant
+	elif root is GPUParticles3D:
+		(root as GPUParticles3D).visible = not is_distant
+	for ch in root.get_children():
+		set_realm_lod_mode(ch, is_distant)

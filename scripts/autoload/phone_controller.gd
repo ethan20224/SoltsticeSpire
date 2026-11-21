@@ -47,6 +47,8 @@ var _orb_locked: bool = false
 var _telemetry_timer: float = 0.0
 var _tunnel_poll_timer: float = 0.0
 var _tunnel_pid: int = -1
+var _cf_checked: bool = false
+var _cf_cached_path: String = ""
 
 var _tcp_server: TCPServer = TCPServer.new()
 var _http_clients: Array[Dictionary] = []
@@ -155,26 +157,65 @@ func send_haptic(kind: String) -> void:
 	_broadcast_ws_text(msg)
 
 
+func _resolve_cloudflared_path() -> String:
+	if _cf_checked:
+		return _cf_cached_path
+	_cf_checked = true
+	_cf_cached_path = ""
+	if OS.get_name() == "Windows":
+		var out: Array = []
+		if OS.execute("where", ["cloudflared"], out) == 0 and not out.is_empty():
+			var lines := str(out[0]).split("\n", false)
+			if not lines.is_empty():
+				_cf_cached_path = lines[0].strip_edges()
+	else:
+		if FileAccess.file_exists("/opt/homebrew/bin/cloudflared"):
+			_cf_cached_path = "/opt/homebrew/bin/cloudflared"
+		elif FileAccess.file_exists("/usr/local/bin/cloudflared"):
+			_cf_cached_path = "/usr/local/bin/cloudflared"
+		else:
+			var out: Array = []
+			if OS.execute("which", ["cloudflared"], out) == 0 and not out.is_empty():
+				var found := str(out[0]).strip_edges().split("\n", false)
+				if not found.is_empty() and not found[0].strip_edges().is_empty():
+					_cf_cached_path = found[0].strip_edges()
+	return _cf_cached_path
+
+
+func is_tunnel_available() -> bool:
+	return not _resolve_cloudflared_path().is_empty()
+
+
 func start_internet_tunnel() -> void:
+	if not is_tunnel_available():
+		use_tunnel_mode = false
+		tunnel_starting = false
+		url_changed.emit(get_active_url(), false)
+		return
 	use_tunnel_mode = true
 	if not tunnel_url.is_empty():
+		tunnel_starting = false
 		url_changed.emit(get_active_url(), true)
 		return
 	if tunnel_starting:
 		return
-	var cf_path := "/opt/homebrew/bin/cloudflared"
-	if not FileAccess.file_exists(cf_path):
-		cf_path = "/usr/local/bin/cloudflared"
-	if not FileAccess.file_exists(cf_path):
-		use_tunnel_mode = false
-		url_changed.emit(get_active_url(), false)
-		return
 
+	var cf_path := _resolve_cloudflared_path()
 	tunnel_starting = true
 	if FileAccess.file_exists(TUNNEL_LOG_PATH):
 		DirAccess.remove_absolute(TUNNEL_LOG_PATH)
-	var cmd := "%s tunnel --url http://127.0.0.1:%d --no-autoupdate > %s 2>&1" % [cf_path, server_port, TUNNEL_LOG_PATH]
-	_tunnel_pid = OS.create_process("/bin/zsh", ["-c", cmd])
+	if OS.get_name() == "Windows":
+		var win_cmd := "\"%s\" tunnel --url http://127.0.0.1:%d --no-autoupdate > %s 2>&1" % [cf_path, server_port, TUNNEL_LOG_PATH]
+		_tunnel_pid = OS.create_process("cmd.exe", ["/c", win_cmd])
+	else:
+		var shell := "/bin/zsh" if FileAccess.file_exists("/bin/zsh") else "/bin/sh"
+		var cmd := "\"%s\" tunnel --url http://127.0.0.1:%d --no-autoupdate > %s 2>&1" % [cf_path, server_port, TUNNEL_LOG_PATH]
+		_tunnel_pid = OS.create_process(shell, ["-c", cmd])
+	if _tunnel_pid <= 0:
+		use_tunnel_mode = false
+		tunnel_starting = false
+		url_changed.emit(get_active_url(), false)
+		return
 	url_changed.emit(get_active_url(), true)
 
 
@@ -190,9 +231,15 @@ func stop_internet_tunnel() -> void:
 
 func set_network_mode(enable_tunnel: bool) -> void:
 	if enable_tunnel:
+		if not is_tunnel_available():
+			use_tunnel_mode = false
+			tunnel_starting = false
+			url_changed.emit(get_active_url(), false)
+			return
 		start_internet_tunnel()
 	else:
 		use_tunnel_mode = false
+		tunnel_starting = false
 		url_changed.emit(get_active_url(), false)
 
 

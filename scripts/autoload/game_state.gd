@@ -15,6 +15,11 @@ signal altitude_updated(altitude_m: float, best_m: float)
 signal fall_recorded(total_falls: int)
 signal summit_reached(run_time: float, total_falls: int, shards: int, max_flow_streak: int)
 signal game_started()
+signal game_mode_changed(mode: String)
+signal graphics_settings_changed()
+signal badge_unlocked(badge_id: String, title: String, desc: String)
+signal cosmetic_changed()
+signal world_unlocked(world_idx: int)
 
 const CHARACTERS := {
 	"pip": {
@@ -53,12 +58,36 @@ const CHARACTERS := {
 }
 
 const WORLDS := [
-	{"idx": 0, "name": "The Sunken Conservatory", "subtitle": "Sunlit Arches & Blooming Canopies", "y_min": 0.0, "y_max": 175.0},
-	{"idx": 1, "name": "Foundry of Floating Bells", "subtitle": "Amber Gears & Resonant Bronze", "y_min": 175.0, "y_max": 355.0},
-	{"idx": 2, "name": "The Origami Monsoon", "subtitle": "Frozen Rain & Unfolding Bridges", "y_min": 355.0, "y_max": 540.0},
-	{"idx": 3, "name": "The Shattered Mirror Gallery", "subtitle": "Iridescent Prisms & Portal Frames", "y_min": 540.0, "y_max": 730.0},
-	{"idx": 4, "name": "The Cloud-Whale Library", "subtitle": "Aurora Dreams & Luminous Tomes", "y_min": 730.0, "y_max": 920.0},
-	{"idx": 5, "name": "The Crown of the Sun", "subtitle": "Stratosphere Monoliths & Summit", "y_min": 920.0, "y_max": 1120.0},
+	{
+		"idx": 0, "name": "The Sunken Conservatory", "subtitle": "Sunlit Arches & Blooming Canopies",
+		"story": "Act I · The Dawnbreaker cannot climb past the conservatory gale. From here, you ascend on foot.",
+		"y_min": 0.0, "y_max": 175.0,
+	},
+	{
+		"idx": 1, "name": "Foundry of Floating Bells", "subtitle": "Amber Gears & Resonant Bronze",
+		"story": "Act II · The bell-smiths fled when the Sun-Heart cracked. Strike their bronze bells to awaken the Spire.",
+		"y_min": 175.0, "y_max": 355.0,
+	},
+	{
+		"idx": 2, "name": "The Origami Monsoon", "subtitle": "Frozen Rain & Unfolding Bridges",
+		"story": "Act III · A storm rose where the sun's warmth faded. Paper cranes still carry the valley's prayers skyward.",
+		"y_min": 355.0, "y_max": 540.0,
+	},
+	{
+		"idx": 3, "name": "The Shattered Mirror Gallery", "subtitle": "Iridescent Prisms & Portal Frames",
+		"story": "Act IV · The cathedral lenses fractured from the shockwave. Tread lightly — the glass is giving way.",
+		"y_min": 540.0, "y_max": 730.0,
+	},
+	{
+		"idx": 4, "name": "The Cloud-Whale Library", "subtitle": "Aurora Dreams & Luminous Tomes",
+		"story": "Act V · Above the storm, the ancient Cloud-Whale circles in the dark, guarding the last path to dawn.",
+		"y_min": 730.0, "y_max": 920.0,
+	},
+	{
+		"idx": 5, "name": "The Crown of the Sun", "subtitle": "Stratosphere Monoliths & Summit",
+		"story": "Act VI · One thousand meters above home. The valley waits in twilight — rekindle the Solstice Crown!",
+		"y_min": 920.0, "y_max": 1120.0,
+	},
 ]
 
 const ROMAN_NUMERALS := ["I", "II", "III", "IV", "V", "VI"]
@@ -67,11 +96,22 @@ const SUMMIT_ALTITUDE := 1085.0
 const REWIND_WINDOW_MAX := 30.0
 const SAVE_PATH := "user://solstice_spire_save.json"
 
+const BADGE_INFO := {
+	"summit_conqueror": {"title": "Summit Conqueror", "desc": "Reach the 1,085m Crown of the Sun.", "tag": "CROWN"},
+	"purist_legend": {"title": "Purist Legend", "desc": "Summit in Purist Mode — zero shrines, zero rewind.", "tag": "PURIST"},
+	"sun_collector": {"title": "Sun Collector", "desc": "Gather all 18 Sun-Shards in a single climb.", "tag": "18/18"},
+	"untouchable_flow": {"title": "Untouchable Flow", "desc": "Chain a x12+ Flow streak.", "tag": "FLOW x12"},
+	"shortcut_daredevil": {"title": "Shortcut Daredevil", "desc": "Conquer a high-risk Pro Shortcut.", "tag": "SKIP"},
+	"meteor_master": {"title": "Meteor Master", "desc": "Trigger a Sky-Dive Meteor Super-Bounce.", "tag": "METEOR"},
+}
+
 var selected_character: String = "pip"
+var game_mode: String = "pilgrim"  # "pilgrim" or "purist"
 var is_playing: bool = false
 var is_paused: bool = false
 var is_cutscene: bool = false
 var has_finished: bool = false
+var victory_skydive_active: bool = false
 
 var current_checkpoint_id: String = "w1_start"
 var current_checkpoint_pos: Vector3 = Vector3(0.0, 1.2, 0.0)
@@ -107,16 +147,37 @@ var master_volume: float = 1.0
 var music_volume: float = 0.85
 var sfx_volume: float = 1.0
 
+var graphics_quality: String = "high"  # "low", "medium", "high"
+var vsync_enabled: bool = true
+var camera_fov: float = 72.0
+var preferred_input_mode: String = "keyboard"  # "keyboard", "gamepad", "phone"
+var preferred_gamepad_style: String = "ps5"  # "ps5", "xbox", "switch"
+
+var unlocked_badges: Dictionary = {}
+var crown_unlocked: bool = false
+var crown_equipped: bool = true
+var purist_halo_unlocked: bool = false
+var purist_halo_equipped: bool = true
+var leaderboard: Array = []
+var last_victory_summary: Dictionary = {}
+
 var _last_saved_best_alt: float = 0.0
 
 
 func _ready() -> void:
 	_load_persistent_data()
+	_apply_vsync()
 
 
 func _process(delta: float) -> void:
 	if is_playing and not is_paused and not is_cutscene and not has_finished:
 		run_time += delta
+
+
+func _apply_vsync() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync_enabled else DisplayServer.VSYNC_DISABLED)
 
 
 func _load_persistent_data() -> void:
@@ -145,11 +206,57 @@ func _load_persistent_data() -> void:
 	music_volume = clampf(float(data.get("music_volume", music_volume)), 0.0, 1.0)
 	sfx_volume = clampf(float(data.get("sfx_volume", sfx_volume)), 0.0, 1.0)
 
+	var loaded_mode := str(data.get("game_mode", game_mode))
+	game_mode = "purist" if loaded_mode == "purist" else "pilgrim"
+	var loaded_q := str(data.get("graphics_quality", graphics_quality))
+	graphics_quality = loaded_q if loaded_q in ["low", "medium", "high"] else "high"
+	vsync_enabled = bool(data.get("vsync_enabled", vsync_enabled))
+	camera_fov = clampf(float(data.get("camera_fov", camera_fov)), 58.0, 96.0)
+	var loaded_imode := str(data.get("preferred_input_mode", preferred_input_mode))
+	preferred_input_mode = loaded_imode if loaded_imode in ["keyboard", "gamepad", "phone"] else "keyboard"
+	var loaded_gstyle := str(data.get("preferred_gamepad_style", preferred_gamepad_style))
+	preferred_gamepad_style = loaded_gstyle if loaded_gstyle in ["ps5", "xbox", "switch"] else "ps5"
+
+	unlocked_worlds.clear()
+	unlocked_worlds.append(0)
+	var loaded_worlds: Variant = data.get("unlocked_worlds", [0])
+	if typeof(loaded_worlds) == TYPE_ARRAY:
+		for w: Variant in loaded_worlds as Array:
+			var wi := clampi(int(w), 0, WORLDS.size() - 1)
+			if not unlocked_worlds.has(wi):
+				unlocked_worlds.append(wi)
+	unlocked_worlds.sort()
+
+	unlocked_badges.clear()
+	var loaded_badges: Variant = data.get("unlocked_badges", {})
+	if typeof(loaded_badges) == TYPE_DICTIONARY:
+		for bk: Variant in (loaded_badges as Dictionary).keys():
+			var b_id := str(bk)
+			if BADGE_INFO.has(b_id) and bool((loaded_badges as Dictionary)[bk]):
+				unlocked_badges[b_id] = true
+
+	crown_unlocked = bool(data.get("crown_unlocked", crown_unlocked))
+	crown_equipped = bool(data.get("crown_equipped", crown_equipped))
+	purist_halo_unlocked = bool(data.get("purist_halo_unlocked", purist_halo_unlocked))
+	purist_halo_equipped = bool(data.get("purist_halo_equipped", purist_halo_equipped))
+
+	leaderboard.clear()
+	var loaded_lb: Variant = data.get("leaderboard", [])
+	if typeof(loaded_lb) == TYPE_ARRAY:
+		for item: Variant in loaded_lb as Array:
+			if typeof(item) == TYPE_DICTIONARY:
+				leaderboard.append((item as Dictionary).duplicate(true))
+		if leaderboard.size() > 8:
+			leaderboard.resize(8)
+
 
 func save_persistent_data() -> void:
 	var splits_serializable: Dictionary = {}
 	for k: Variant in best_world_splits.keys():
 		splits_serializable[str(k)] = float(best_world_splits[k])
+	var worlds_serializable: Array = []
+	for w in unlocked_worlds:
+		worlds_serializable.append(int(w))
 	var payload := {
 		"best_ever_altitude": snappedf(best_ever_altitude, 0.01),
 		"best_run_time": snappedf(best_run_time, 0.01),
@@ -159,11 +266,108 @@ func save_persistent_data() -> void:
 		"invert_y": invert_y,
 		"music_volume": music_volume,
 		"sfx_volume": sfx_volume,
+		"game_mode": game_mode,
+		"graphics_quality": graphics_quality,
+		"vsync_enabled": vsync_enabled,
+		"camera_fov": camera_fov,
+		"preferred_input_mode": preferred_input_mode,
+		"preferred_gamepad_style": preferred_gamepad_style,
+		"unlocked_worlds": worlds_serializable,
+		"unlocked_badges": unlocked_badges,
+		"crown_unlocked": crown_unlocked,
+		"crown_equipped": crown_equipped,
+		"purist_halo_unlocked": purist_halo_unlocked,
+		"purist_halo_equipped": purist_halo_equipped,
+		"leaderboard": leaderboard,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(payload))
 		_last_saved_best_alt = best_ever_altitude
+
+
+func is_purist_mode() -> bool:
+	return game_mode == "purist"
+
+
+func set_game_mode(mode: String) -> void:
+	var clean := "purist" if mode == "purist" else "pilgrim"
+	if game_mode == clean:
+		return
+	game_mode = clean
+	save_persistent_data()
+	game_mode_changed.emit(game_mode)
+
+
+func is_world_unlocked(world_idx: int) -> bool:
+	return world_idx == 0 or unlocked_worlds.has(world_idx)
+
+
+func set_graphics_quality(q: String, persist: bool = true) -> void:
+	var clean := q if q in ["low", "medium", "high"] else "high"
+	if graphics_quality == clean and not persist:
+		return
+	graphics_quality = clean
+	if persist:
+		save_persistent_data()
+	graphics_settings_changed.emit()
+
+
+func set_vsync_enabled(enabled: bool, persist: bool = true) -> void:
+	vsync_enabled = enabled
+	_apply_vsync()
+	if persist:
+		save_persistent_data()
+	graphics_settings_changed.emit()
+
+
+func set_camera_fov(fov: float, persist: bool = true) -> void:
+	camera_fov = clampf(fov, 58.0, 96.0)
+	if persist:
+		save_persistent_data()
+	graphics_settings_changed.emit()
+
+
+func set_crown_equipped(enabled: bool) -> void:
+	if crown_equipped == enabled:
+		return
+	crown_equipped = enabled
+	save_persistent_data()
+	cosmetic_changed.emit()
+
+
+func set_purist_halo_equipped(enabled: bool) -> void:
+	if purist_halo_equipped == enabled:
+		return
+	purist_halo_equipped = enabled
+	save_persistent_data()
+	cosmetic_changed.emit()
+
+
+func unlock_badge(badge_id: String, show_callout: bool = true) -> bool:
+	if not BADGE_INFO.has(badge_id) or unlocked_badges.has(badge_id):
+		return false
+	unlocked_badges[badge_id] = true
+	var info: Dictionary = BADGE_INFO[badge_id]
+	var title: String = str(info["title"])
+	var desc: String = str(info["desc"])
+	save_persistent_data()
+	badge_unlocked.emit(badge_id, title, desc)
+	if show_callout:
+		emit_callout("BADGE UNLOCKED", title, Color(1.0, 0.86, 0.36))
+	return true
+
+
+func compute_rank(sec: float, falls: int, shards: int, mode: String) -> Dictionary:
+	if mode == "purist" or (sec <= 720.0 and falls <= 2 and shards >= 12):
+		return {"grade": "S+", "title": "Solstice Legend", "color": Color(1.0, 0.95, 0.72)}
+	if sec <= 960.0 and falls <= 5:
+		return {"grade": "S", "title": "Sun-Crowned", "color": Color(1.0, 0.78, 0.28)}
+	if sec <= 1440.0 and falls <= 12:
+		return {"grade": "A", "title": "Skyward Ace", "color": Color(0.98, 0.62, 0.46)}
+	if sec <= 2100.0:
+		return {"grade": "B", "title": "Cloud Climber", "color": Color(0.46, 0.88, 0.94)}
+	return {"grade": "C", "title": "First Ascent", "color": Color(0.92, 0.88, 0.82)}
 
 
 func set_character(char_id: String) -> void:
@@ -229,10 +433,15 @@ func activate_checkpoint(cp_id: String, world_idx: int, pos: Vector3, yaw: float
 	current_checkpoint_id = cp_id
 	current_checkpoint_pos = pos
 	current_checkpoint_yaw = yaw
+	var newly_unlocked_world := false
 	if not unlocked_worlds.has(world_idx):
 		unlocked_worlds.append(world_idx)
 		unlocked_worlds.sort()
-	if best_ever_altitude > _last_saved_best_alt:
+		newly_unlocked_world = true
+	if newly_unlocked_world:
+		save_persistent_data()
+		world_unlocked.emit(world_idx)
+	elif best_ever_altitude > _last_saved_best_alt:
 		save_persistent_data()
 	checkpoint_updated.emit(cp_id, world_idx, pos)
 	return is_new
@@ -258,6 +467,8 @@ func update_altitude(y_pos: float) -> void:
 		if not unlocked_worlds.has(detected_world):
 			unlocked_worlds.append(detected_world)
 			unlocked_worlds.sort()
+			save_persistent_data()
+			world_unlocked.emit(detected_world)
 		var winfo: Dictionary = WORLDS[detected_world]
 		world_entered.emit(detected_world, winfo["name"], winfo["subtitle"])
 		if entered_higher and detected_world > 0 and not current_world_splits.has(detected_world):
@@ -287,6 +498,8 @@ func update_flow(flow_val: float, streak: int) -> void:
 	current_streak = streak
 	if streak > max_flow_streak:
 		max_flow_streak = streak
+	if streak >= 12:
+		unlock_badge("untouchable_flow")
 	flow_changed.emit(current_flow, current_streak)
 
 
@@ -322,13 +535,76 @@ func trigger_summit_victory() -> void:
 	if has_finished:
 		return
 	has_finished = true
+	var shards_count := collected_shards.size()
 	best_ever_altitude = maxf(best_ever_altitude, maxf(current_altitude, SUMMIT_ALTITUDE))
-	if best_run_time <= 0.0 or run_time < best_run_time:
+	var is_new_pb := best_run_time <= 0.0 or run_time < best_run_time
+	if is_new_pb:
 		best_run_time = run_time
 		best_run_samples = current_run_samples.duplicate(true)
 		best_world_splits = current_world_splits.duplicate(true)
+
+	var rank := compute_rank(run_time, total_falls, shards_count, game_mode)
+	var crown_just_unlocked := not crown_unlocked
+	var halo_just_unlocked := false
+	crown_unlocked = true
+
+	var new_badges: Array[String] = []
+	if unlock_badge("summit_conqueror", false):
+		new_badges.append("summit_conqueror")
+	if is_purist_mode():
+		if not purist_halo_unlocked:
+			halo_just_unlocked = true
+		purist_halo_unlocked = true
+		if unlock_badge("purist_legend", false):
+			new_badges.append("purist_legend")
+	if shards_count >= TOTAL_SHARDS:
+		if unlock_badge("sun_collector", false):
+			new_badges.append("sun_collector")
+
+	var entry := {
+		"time": snappedf(run_time, 0.01),
+		"falls": total_falls,
+		"shards": shards_count,
+		"max_flow": max_flow_streak,
+		"char": selected_character,
+		"mode": game_mode,
+		"rank": str(rank["grade"]),
+		"rank_title": str(rank["title"]),
+		"date": Time.get_date_string_from_system(),
+	}
+	leaderboard.append(entry)
+	leaderboard.sort_custom(func(a: Variant, b: Variant) -> bool:
+		var da := a as Dictionary
+		var db := b as Dictionary
+		var a_purist := str(da.get("mode", "pilgrim")) == "purist"
+		var b_purist := str(db.get("mode", "pilgrim")) == "purist"
+		if a_purist != b_purist:
+			return a_purist
+		return float(da.get("time", 999999.0)) < float(db.get("time", 999999.0))
+	)
+	if leaderboard.size() > 8:
+		leaderboard.resize(8)
+
+	last_victory_summary = {
+		"time": run_time,
+		"falls": total_falls,
+		"shards": shards_count,
+		"max_flow": max_flow_streak,
+		"char": selected_character,
+		"mode": game_mode,
+		"rank": str(rank["grade"]),
+		"rank_title": str(rank["title"]),
+		"rank_color": rank["color"],
+		"is_new_pb": is_new_pb,
+		"crown_just_unlocked": crown_just_unlocked,
+		"halo_just_unlocked": halo_just_unlocked,
+		"new_badges": new_badges,
+	}
+
 	save_persistent_data()
-	summit_reached.emit(run_time, total_falls, collected_shards.size(), max_flow_streak)
+	if crown_just_unlocked or halo_just_unlocked:
+		cosmetic_changed.emit()
+	summit_reached.emit(run_time, total_falls, shards_count, max_flow_streak)
 
 
 func format_time(sec: float) -> String:

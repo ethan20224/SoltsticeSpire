@@ -15,6 +15,9 @@ var _diorama_culled: bool = false
 var _last_low_w1: bool = true
 var _last_fast_fall: bool = false
 var _player_ref: Node3D = null
+var _valley_below: ValleyWorldBelow = null
+var _world_distant_lod: Array[bool] = [false, false, false, false, false, false]
+var _victory_rings_root: Node3D = null
 
 
 func _process(_delta: float) -> void:
@@ -22,8 +25,10 @@ func _process(_delta: float) -> void:
 		var found := get_tree().get_first_node_in_group("player")
 		if found is Node3D:
 			_player_ref = found as Node3D
+	var alt_y: float = 0.0
 	if is_instance_valid(_player_ref):
 		if GameState.is_playing:
+			alt_y = _player_ref.global_position.y
 			RenderingServer.global_shader_parameter_set("player_world_pos", _player_ref.global_position)
 		else:
 			RenderingServer.global_shader_parameter_set("player_world_pos", Vector3(99999.0, 99999.0, 99999.0))
@@ -32,6 +37,39 @@ func _process(_delta: float) -> void:
 			if vel_y < -10.0 and not _last_fast_fall and not _world_nodes.is_empty():
 				var py: float = _player_ref.global_position.y
 				set_focus_world(world_index_for_altitude(py), false, py, vel_y)
+	if is_instance_valid(_valley_below):
+		_valley_below.visible = true
+		var haze_col := _haze_color_for_altitude(alt_y)
+		var sun_col := _sun_color_for_altitude(alt_y)
+		_valley_below.update_atmosphere(alt_y, haze_col, sun_col)
+
+
+func _haze_color_for_altitude(alt_y: float) -> Color:
+	if alt_y < 172.0:
+		return Color(0.68, 0.82, 0.95).lerp(Color(0.78, 0.62, 0.72), clampf(alt_y / 172.0, 0.0, 1.0))
+	elif alt_y < 352.0:
+		return Color(0.78, 0.62, 0.72).lerp(Color(0.32, 0.50, 0.64), clampf((alt_y - 172.0) / 180.0, 0.0, 1.0))
+	elif alt_y < 536.0:
+		return Color(0.32, 0.50, 0.64).lerp(Color(0.46, 0.36, 0.62), clampf((alt_y - 352.0) / 184.0, 0.0, 1.0))
+	elif alt_y < 726.0:
+		return Color(0.46, 0.36, 0.62).lerp(Color(0.16, 0.26, 0.44), clampf((alt_y - 536.0) / 190.0, 0.0, 1.0))
+	elif alt_y < 916.0:
+		return Color(0.16, 0.26, 0.44).lerp(Color(0.64, 0.58, 0.78), clampf((alt_y - 726.0) / 190.0, 0.0, 1.0))
+	return Color(0.64, 0.58, 0.78)
+
+
+func _sun_color_for_altitude(alt_y: float) -> Color:
+	if alt_y < 172.0:
+		return Color(1.0, 0.95, 0.84).lerp(Color(1.0, 0.82, 0.58), clampf(alt_y / 172.0, 0.0, 1.0))
+	elif alt_y < 352.0:
+		return Color(1.0, 0.82, 0.58).lerp(Color(0.78, 0.88, 0.94), clampf((alt_y - 172.0) / 180.0, 0.0, 1.0))
+	elif alt_y < 536.0:
+		return Color(0.78, 0.88, 0.94).lerp(Color(0.94, 0.76, 0.92), clampf((alt_y - 352.0) / 184.0, 0.0, 1.0))
+	elif alt_y < 726.0:
+		return Color(0.94, 0.76, 0.92).lerp(Color(0.68, 0.84, 0.98), clampf((alt_y - 536.0) / 190.0, 0.0, 1.0))
+	elif alt_y < 916.0:
+		return Color(0.68, 0.84, 0.98).lerp(Color(1.0, 0.92, 0.72), clampf((alt_y - 726.0) / 190.0, 0.0, 1.0))
+	return Color(1.0, 0.92, 0.72)
 
 
 func build_all_worlds() -> void:
@@ -39,6 +77,12 @@ func build_all_worlds() -> void:
 	_world_nodes.clear()
 	_cloud_groups.clear()
 	_firefly_nodes.clear()
+	if is_instance_valid(_valley_below):
+		_valley_below.queue_free()
+	_valley_below = ValleyWorldBelow.new()
+	_valley_below.name = "ValleyWorldBelow"
+	add_child(_valley_below)
+	_valley_below.build()
 	_spawn_cloud_decks()
 	_spawn_stylized_cloud_clusters()
 	_spawn_ambient_fireflies()
@@ -81,6 +125,8 @@ func set_diorama_cull(active: bool, origin: Vector3 = Vector3(0.0, 0.05, 25.5)) 
 	## During Character Select Diorama, hides W2..W6 and culls upper W1 props/lights > 46m from the diorama stage
 	## while keeping the W1 Tower Core and horizon parallax rings visible!
 	_diorama_culled = active
+	if is_instance_valid(_valley_below):
+		_valley_below.visible = true
 	if _world_nodes.is_empty():
 		return
 	if active:
@@ -118,6 +164,8 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 	## (and hides W2 while at the bottom half of W1 so W1 opening hits 60 FPS),
 	## streams [idx-2, idx+1] when falling fast (vel_y < -10.0) to prevent invisible lower realms,
 	## or shows all 6 realms for the Summit Look-Down vista with 90m detail culling on distant worlds!
+	if is_instance_valid(_valley_below):
+		_valley_below.visible = true
 	if _diorama_culled:
 		return
 	idx = clampi(idx, 0, _world_nodes.size() - 1)
@@ -137,21 +185,32 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 		var wn: Node3D = _world_nodes[i]
 		if show_all_for_summit:
 			wn.visible = true
-			if i != idx:
-				WorldHelper.set_detail_cull_range(wn, 90.0)
-			else:
-				WorldHelper.set_detail_cull_range(wn, 0.0)
+			var dist_lod := (i != idx)
+			if _world_distant_lod[i] != dist_lod:
+				_world_distant_lod[i] = dist_lod
+				WorldHelper.set_realm_lod_mode(wn, dist_lod)
+			WorldHelper.set_detail_cull_range(wn, 78.0 if dist_lod else 0.0)
+			for ch in wn.get_children():
+				if ch is Node3D and ch.name.begins_with("ParallaxRing_"):
+					(ch as Node3D).visible = (i == idx)
 		else:
+			# ALWAYS keep EVERY conquered realm below (0 .. idx) + next realm above (idx + 1)
+			# visible so looking down shows ALL of your vertical climb all the way to 0m & the Valley!
+			# Realms 2+ tiers below switch to fast distant-LOD (no shadows/omni-lights/tiny clutter).
 			var in_window: bool
-			if fast_fall:
-				in_window = (i >= idx - 2 and i <= idx + 1)
-			elif low_w1:
-				in_window = (i == 0)
+			if low_w1:
+				in_window = (i <= 1)
 			else:
-				in_window = (absi(i - idx) <= 1)
+				in_window = (i <= idx + 1)
 			wn.visible = in_window
 			if in_window:
-				WorldHelper.set_detail_cull_range(wn, 0.0 if i == idx else 130.0)
+				var far_above_border: bool = (player_y < 0.0) or (player_y - float(GameState.WORLDS[idx]["y_min"]) > 28.0)
+				var dist_lod: bool = (i <= idx - 2) or (i == idx - 1 and far_above_border) or (i == idx + 1 and (low_w1 or far_above_border))
+				if _world_distant_lod[i] != dist_lod:
+					_world_distant_lod[i] = dist_lod
+					WorldHelper.set_realm_lod_mode(wn, dist_lod)
+				var cull_m := 0.0 if i == idx else (75.0 if dist_lod else 130.0)
+				WorldHelper.set_detail_cull_range(wn, cull_m)
 				for ch in wn.get_children():
 					if ch is Node3D and ch.name.begins_with("ParallaxRing_"):
 						(ch as Node3D).visible = (i == idx)
@@ -160,18 +219,14 @@ func set_focus_world(idx: int, show_all_for_summit: bool = false, player_y: floa
 		var cg: Node3D = _cloud_groups[i]
 		if show_all_for_summit:
 			cg.visible = true
-		elif fast_fall:
-			cg.visible = (i >= idx - 2 and i <= idx + 1)
 		elif low_w1:
 			cg.visible = (i == 0)
 		else:
-			cg.visible = (absi(i - idx) <= 1)
+			cg.visible = (i <= idx + 1)
 
 	for i in range(_firefly_nodes.size()):
 		var ff: GPUParticles3D = _firefly_nodes[i]
-		if fast_fall:
-			ff.visible = (i >= idx - 2 and i <= idx + 1)
-		elif low_w1:
+		if low_w1:
 			ff.visible = (i == 0)
 		else:
 			ff.visible = (i == idx) or (absi(i - idx) <= 1 and not show_all_for_summit)
@@ -191,6 +246,39 @@ func world_index_for_altitude(y_pos: float) -> int:
 	return 5
 
 
+func spawn_victory_sky_rings() -> void:
+	clear_victory_sky_rings()
+	_victory_rings_root = Node3D.new()
+	_victory_rings_root.name = "VictorySkyRings"
+	add_child(_victory_rings_root)
+	# 12 glowing golden victory rings spiraling gracefully from Summit (1,030m) down to Awakening Terrace (36m)!
+	var ring_count := 12
+	for i in range(ring_count):
+		var u := float(i) / float(ring_count - 1)
+		var y := lerpf(1025.0, 38.0, u)
+		var ang_deg := lerpf(0.0, 360.0, u)
+		var rad := lerpf(36.0, 26.0, u)
+		var pos := Vector3(sin(deg_to_rad(ang_deg)) * rad, y, cos(deg_to_rad(ang_deg)) * rad)
+		if i == ring_count - 1:
+			pos = Vector3(0.0, 34.0, 26.0)
+		var ring := VictorySkyRing.new()
+		ring.ring_index = i
+		ring.ring_radius = 6.2
+		ring.position = pos
+		_victory_rings_root.add_child(ring)
+
+
+func clear_victory_sky_rings() -> void:
+	if is_instance_valid(_victory_rings_root):
+		_victory_rings_root.queue_free()
+	_victory_rings_root = null
+
+
+func set_solstice_rekindled(active: bool) -> void:
+	if is_instance_valid(_valley_below):
+		_valley_below.set_solstice_rekindled(active)
+
+
 func _exit_tree() -> void:
 	WorldHelper.clear_caches()
 
@@ -199,9 +287,9 @@ func _spawn_cloud_decks() -> void:
 	var cloud_sh: Shader = load("res://assets/shaders/volumetric_cloud_sea.gdshader")
 	var tiers: Array[Dictionary] = [
 		{
-			"y": -18.0, "size": 1500.0, "sub": 60, "op": 0.96,
+			"y": -52.0, "size": 2800.0, "sub": 64, "op": 0.84,
 			"crest": Color(1.0, 0.97, 0.90), "val": Color(0.56, 0.70, 0.90),
-			"glow": Color(1.0, 0.88, 0.62), "billow": 8.2, "scale": 0.0085,
+			"glow": Color(1.0, 0.88, 0.62), "billow": 11.5, "scale": 0.0085,
 		},
 	]
 	for idx in range(tiers.size()):

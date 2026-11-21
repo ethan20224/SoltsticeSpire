@@ -68,9 +68,11 @@ func build(audit: Array) -> Vector3:
 	WorldHelper.add_mossy_stones(self, p_start, 5.6, 5, 1031, true)
 	WorldHelper.add_shrine(self, "w1_cp1", 0, p_start + Vector3(-5.0, 0.0, -3.5), 0.0, true, false, audit, Vector3(5.0, 0.8, 3.1))
 
-	# Cozy Conservatory Sanctuary Dressing: Lumpy Leaf-Card Trees, Potted Ferns & Warm Lamp Posts!
+	# Cozy Conservatory Sanctuary Dressing + Docked 'Dawnbreaker' Sky-Airship Arrival Pier!
+	WorldHelper.add_docked_airship(self, p_start + Vector3(-10.2, 0.08, 2.0), -18.0)
+	WorldHelper.add_world_hint(self, p_start + Vector3(-7.8, 2.35, 1.6), "THE DAWNBREAKER — DOCKED", "The Sun-Heart at 1,085m is dying. Walk the gangplank & ascend.")
 	WorldHelper.add_landmark(self, TREE, p_start + Vector3(4.2, 0.0, -2.5), Vector3(1.12, 1.12, 1.12), Vector3(0.0, -28.0, 0.0), STYLE, 190.0)
-	WorldHelper.add_landmark(self, TREE, p_start + Vector3(-4.8, 0.0, 2.3), Vector3(0.95, 0.95, 0.95), Vector3(0.0, 42.0, 0.0), STYLE, 190.0)
+	WorldHelper.add_landmark(self, TREE, p_start + Vector3(-4.2, 0.0, 4.4), Vector3(0.95, 0.95, 0.95), Vector3(0.0, 42.0, 0.0), STYLE, 190.0)
 	WorldHelper.add_landmark(self, FERN, p_start + Vector3(3.1, 0.0, -3.9), Vector3(0.95, 0.95, 0.95), Vector3(0.0, 18.0, 0.0), STYLE, 140.0, true)
 	WorldHelper.add_landmark(self, FERN, p_start + Vector3(-2.6, 0.0, -4.1), Vector3(0.85, 0.85, 0.85), Vector3(0.0, -42.0, 0.0), STYLE, 140.0, true)
 	WorldHelper.add_landmark(self, FERN, p_start + Vector3(4.6, 0.0, 1.4), Vector3(1.05, 1.05, 1.05), Vector3(0.0, 85.0, 0.0), STYLE, 140.0, true)
@@ -98,9 +100,11 @@ func build(audit: Array) -> Vector3:
 		WorldHelper.add_landmark(self, FERN, ip + Vector3(-1.2, 0.0, 0.8), Vector3(0.95, 0.95, 0.95), Vector3(0.0, idx * 80.0, 0.0), STYLE, 130.0, true)
 
 	# Opening joyful sprint-and-jump cadence along sunlit aqueduct arches spiraling clockwise
+	WorldHelper.add_world_hint(self, Vector3(0.0, 2.35, 21.6), "BEGIN THE ASCENT", "{move} Move  ·  {jump} Jump  ·  Double-Jump mid-air")
 	var p := Vector3(0.0, 1.5, 16.5)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, 0.0, 0.0), STYLE, audit)
 	WorldHelper.add_solar_mote_arc(self, p + Vector3(0.0, 0.6, -2.5), Vector3(5.5, 4.6, 8.5), 2.4, 4)
+	WorldHelper.add_world_hint(self, Vector3(2.6, 3.85, 12.8), "SPRINT & AIR-DASH", "Hold {sprint} to Sprint  ·  {dash} mid-air to Air-Dash")
 
 	p = Vector3(5.5, 4.0, 8.5)
 	WorldHelper.add_static_cyl_platform(self, PLINTH, p, 2.6, 0.8, Vector3(1.1, 1.0, 1.1), Vector3.ZERO, STYLE, audit)
@@ -112,6 +116,7 @@ func build(audit: Array) -> Vector3:
 	WorldHelper.add_wildflower_scatter(self, p, 1.2, 2.3, 8, 1023)
 	WorldHelper.add_dressing_cluster(self, CLUSTER, p + Vector3(1.5, 0.0, 0.8), -45.0, STYLE)
 	WorldHelper.add_solar_mote_arc(self, Vector3(13.0, 7.5, 3.0), Vector3(19.5, 9.9, -3.5), 2.2, 4)
+	WorldHelper.add_world_hint(self, Vector3(16.0, 9.25, 0.0), "SUN-FLOWER BOUNCE", "Step on Petals to Soar  ·  Hold {slide} mid-air for METEOR BOUNCE!")
 
 	# First Giant Botanical Lily Pad Bounce (L111 -> L114)
 	p = Vector3(19.5, 9.2, -3.5)
@@ -120,6 +125,7 @@ func build(audit: Array) -> Vector3:
 
 	p = Vector3(21.5, 17.5, -11.5)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, -18.0, 0.0), STYLE, audit)
+	WorldHelper.add_world_hint(self, Vector3(20.0, 19.9, -15.2), "FLOW & SKY SHRINES", "Chain hops for Flow  ·  Touch glowing Shrines to save")
 
 	var shard1_pad := Vector3(30.5, 19.5, -14.0)
 	WorldHelper.add_bounce_pad(self, LILY, shard1_pad, 19.0, 2.1, Vector3(-5.0, 0.0, -2.0), STYLE, [])
@@ -145,6 +151,17 @@ func build(audit: Array) -> Vector3:
 
 	p = Vector3(-21.0, 47.5, -11.0)
 	WorldHelper.add_static_box_platform(self, ARCH, p, Vector3(3.4, 0.6, 6.6), Vector3.ONE, Vector3(0.0, 45.0, 0.0), STYLE, audit)
+
+	# SET-PIECE / PRO SHORTCUT #1: "Sun-Arch Sky-Skip" (Daring outer narrow beam + Super-Bloom flower + Tether chain skipping to Y=81m!)
+	WorldHelper.add_static_box_platform(self, ARCH, Vector3(-28.0, 49.0, -4.5), Vector3(3.4, 0.6, 6.6), Vector3(0.42, 1.0, 1.15), Vector3(0.0, -35.0, 0.0), STYLE, [])
+	WorldHelper.add_bounce_pad(self, LILY, Vector3(-32.5, 51.5, 4.0), 25.4, 2.3, Vector3(5.0, 0.0, 7.2), STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-32.5, 52.5, 4.0), Vector3(-25.0, 64.5, 12.5), 3.8, 4)
+	WorldHelper.add_tether_orb(self, Vector3(-25.0, 64.5, 12.5), [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-25.0, 64.5, 12.5), Vector3(-12.0, 73.5, 21.5), 3.0, 4)
+	WorldHelper.add_tether_orb(self, Vector3(-12.0, 73.5, 21.5), [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-12.0, 73.5, 21.5), Vector3(0.5, 78.8, 24.5), 2.6, 3)
+	WorldHelper.add_static_cyl_platform(self, PLINTH, Vector3(0.5, 78.2, 24.5), 2.6, 0.8, Vector3(0.88, 1.0, 0.88), Vector3.ZERO, STYLE, [])
+	WorldHelper.add_shortcut_beacon(self, Vector3(0.5, 78.2, 24.5), -65.0, "SUN-ARCH SKY-SKIP!", "+30m PRO SHORTCUT")
 
 	# Checkpoint 2 Sanctuary Terrace (Y = 54m)
 	var cp2 := Vector3(-26.0, 51.0, -1.5)

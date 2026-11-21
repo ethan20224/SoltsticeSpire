@@ -97,6 +97,10 @@ func _on_body_entered(body: Node3D) -> void:
 			GameState.trigger_summit_victory()
 		return
 
+	# In Purist ("Only Up!") Mode, Sky Shrines remain dormant — zero checkpoints!
+	if GameState.has_method("is_purist_mode") and GameState.is_purist_mode():
+		return
+
 	var spawn_pos := global_position + spawn_offset
 	var is_new := GameState.activate_checkpoint(checkpoint_id, world_idx, spawn_pos, deg_to_rad(spawn_yaw_deg))
 	if body.has_method("on_shrine_activated"):

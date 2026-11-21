@@ -22,6 +22,8 @@ var _wing_l: Node3D
 var _wing_r: Node3D
 var _ant_l: Node3D
 var _ant_r: Node3D
+var _crown_node: Node3D
+var _halo_node: Node3D
 
 var _char_id: String = "pip"
 var _anim_time: float = 0.0
@@ -49,6 +51,8 @@ func _ready() -> void:
 	_setup_burst_particles()
 	load_character(GameState.selected_character)
 	GameState.character_changed.connect(load_character)
+	if GameState.has_signal("cosmetic_changed"):
+		GameState.cosmetic_changed.connect(_refresh_cosmetics)
 
 
 func _setup_ribbon() -> void:
@@ -126,6 +130,8 @@ func load_character(char_id: String) -> void:
 	_wing_r = null
 	_ant_l = null
 	_ant_r = null
+	_crown_node = null
+	_halo_node = null
 
 	var info: Dictionary = GameState.CHARACTERS[char_id]
 	var scene_res: Variant = load(str(info["model"]))
@@ -134,6 +140,7 @@ func load_character(char_id: String) -> void:
 		WorldHelper.apply_plush_character_materials(_model_root)
 		add_child(_model_root)
 		_cache_rig_nodes(_model_root)
+		_attach_cosmetics()
 
 	_apply_trail_colors()
 	_trail_points.clear()
@@ -412,3 +419,95 @@ func clear_trail() -> void:
 	_trail_points.clear()
 	if _ribbon_mesh:
 		_ribbon_mesh.clear_surfaces()
+
+
+static func build_golden_crown_mesh(char_id: String) -> Node3D:
+	var crown := Node3D.new()
+	crown.name = "GoldenSolsticeCrown"
+	var y_off := 0.49 if char_id == "pip" else (0.44 if char_id == "koko" else 0.40)
+	crown.position = Vector3(0.0, y_off, 0.0)
+
+	var gold_mat := StandardMaterial3D.new()
+	gold_mat.albedo_color = Color(1.0, 0.84, 0.28)
+	gold_mat.metallic = 0.88
+	gold_mat.roughness = 0.20
+	gold_mat.emission_enabled = true
+	gold_mat.emission = Color(1.0, 0.76, 0.20)
+	gold_mat.emission_energy_multiplier = 0.65
+
+	var gem_mat := StandardMaterial3D.new()
+	gem_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gem_mat.albedo_color = Color(1.0, 0.96, 0.65)
+
+	var base_ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.088
+	torus.outer_radius = 0.112
+	torus.rings = 20
+	torus.ring_segments = 10
+	base_ring.mesh = torus
+	base_ring.material_override = gold_mat
+	base_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	crown.add_child(base_ring)
+
+	for i in range(5):
+		var a := float(i) * TAU / 5.0
+		var spike := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.bottom_radius = 0.024
+		cyl.top_radius = 0.004
+		cyl.height = 0.085 if i == 0 else 0.068
+		cyl.radial_segments = 8
+		spike.mesh = cyl
+		spike.material_override = gold_mat
+		spike.position = Vector3(sin(a) * 0.098, cyl.height * 0.5 + 0.008, -cos(a) * 0.098)
+		spike.rotation = Vector3(-cos(a) * 0.16, 0.0, -sin(a) * 0.16)
+		spike.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		crown.add_child(spike)
+
+		var pearl := MeshInstance3D.new()
+		var sp := SphereMesh.new()
+		sp.radius = 0.014 if i == 0 else 0.010
+		sp.height = sp.radius * 2.0
+		sp.radial_segments = 8
+		sp.rings = 4
+		pearl.mesh = sp
+		pearl.material_override = gem_mat
+		pearl.position = spike.position + Vector3(0.0, cyl.height * 0.52, 0.0)
+		pearl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		crown.add_child(pearl)
+
+	return crown
+
+
+func _attach_cosmetics() -> void:
+	if _head != null:
+		_crown_node = build_golden_crown_mesh(_char_id)
+		_head.add_child(_crown_node)
+	if _body != null:
+		_halo_node = Node3D.new()
+		_halo_node.name = "PuristSolsticeHalo"
+		_halo_node.position = Vector3(0.0, 0.52, 0.24)
+		var h_mi := MeshInstance3D.new()
+		var h_tor := TorusMesh.new()
+		h_tor.inner_radius = 0.34
+		h_tor.outer_radius = 0.365
+		h_tor.rings = 28
+		h_tor.ring_segments = 8
+		h_mi.mesh = h_tor
+		h_mi.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+		h_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var h_mat := StandardMaterial3D.new()
+		h_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		h_mat.albedo_color = Color(1.0, 0.88, 0.42)
+		h_mi.material_override = h_mat
+		_halo_node.add_child(h_mi)
+		_body.add_child(_halo_node)
+	_refresh_cosmetics()
+
+
+func _refresh_cosmetics() -> void:
+	if _crown_node and is_instance_valid(_crown_node):
+		_crown_node.visible = GameState.crown_unlocked and GameState.crown_equipped
+	if _halo_node and is_instance_valid(_halo_node):
+		_halo_node.visible = GameState.purist_halo_unlocked and GameState.purist_halo_equipped

@@ -13,6 +13,7 @@ var _lan_btn: Button
 var _net_btn: Button
 var _sub_label: Label
 var _compact_mode: bool = false
+var _show_tunnel_hint: bool = false
 
 
 func _init(compact: bool = false) -> void:
@@ -106,6 +107,7 @@ func _build_content() -> void:
 	_lan_btn.custom_minimum_size = Vector2(118, 30)
 	_lan_btn.pressed.connect(func():
 		AudioDirector.play_sfx("ui_click", -3.0, 1.05)
+		_show_tunnel_hint = false
 		PhoneController.set_network_mode(false)
 		_refresh_qr_and_status()
 	)
@@ -116,8 +118,15 @@ func _build_content() -> void:
 	_net_btn.custom_minimum_size = Vector2(112, 30)
 	_net_btn.pressed.connect(func():
 		AudioDirector.play_sfx("ui_click", -3.0, 1.15)
-		PhoneController.set_network_mode(true)
-		_refresh_qr_and_status()
+		if not PhoneController.is_tunnel_available():
+			_show_tunnel_hint = true
+			PhoneController.set_network_mode(false)
+			_refresh_qr_and_status()
+			_sub_label.text = "Same Wi-Fi active (<2ms) · 5G requires optional cloudflared"
+		else:
+			_show_tunnel_hint = false
+			PhoneController.set_network_mode(true)
+			_refresh_qr_and_status()
 	)
 	net_row.add_child(_net_btn)
 
@@ -147,6 +156,11 @@ func _refresh_qr_and_status() -> void:
 	else:
 		_url_label.text = active_url.replace("https://", "").replace("http://", "")
 
+	if not PhoneController.is_tunnel_available():
+		_net_btn.text = "5G (Local Only)"
+	else:
+		_net_btn.text = "Internet / 5G"
+
 	UITheme.style_secondary_pill(_lan_btn, not PhoneController.use_tunnel_mode, 11)
 	UITheme.style_secondary_pill(_net_btn, PhoneController.use_tunnel_mode, 11)
 
@@ -164,7 +178,10 @@ func _refresh_qr_and_status() -> void:
 		_status_badge.add_theme_stylebox_override("panel", sb)
 		_status_label.text = "● %s Connected · Live" % PhoneController.client_device_name
 		UITheme.apply_font(_status_label, "extrabold", 11, Color(0.75, 1.0, 0.86))
-		_sub_label.text = "DualSense Web Deck active — Keyboard bypassed"
+		if _show_tunnel_hint and not PhoneController.is_tunnel_available():
+			_sub_label.text = "Same Wi-Fi active (<2ms) · 5G requires optional cloudflared"
+		else:
+			_sub_label.text = "DualSense Web Deck active — Keyboard bypassed"
 	else:
 		sb.bg_color = Color(0.20, 0.15, 0.08, 0.88)
 		sb.border_color = Color(0.98, 0.74, 0.24, 0.55)
@@ -172,4 +189,7 @@ func _refresh_qr_and_status() -> void:
 		_status_badge.add_theme_stylebox_override("panel", sb)
 		_status_label.text = "● Waiting for iPhone Scan…"
 		UITheme.apply_font(_status_label, "bold", 11, UITheme.ACCENT_AMBER)
-		_sub_label.text = "Rotate iPhone horizontally & scan with Camera"
+		if _show_tunnel_hint and not PhoneController.is_tunnel_available():
+			_sub_label.text = "Same Wi-Fi active (<2ms) · 5G requires optional cloudflared"
+		else:
+			_sub_label.text = "Rotate iPhone horizontally & scan with Camera"

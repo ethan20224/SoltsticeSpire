@@ -8,20 +8,21 @@ class_name PlayerController
 
 signal high_water_planted(pos: Vector3, alt_m: float)
 signal high_water_passed(alt_m: float)
+signal victory_skydive_landed()
 
-enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, SKY_DIVE }
+enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, SKY_DIVE, VICTORY_DIVE }
 
-# Core Tuned Kinematics (with subtle explorer perks applied via helpers)
+# Core Tuned Kinematics (tight, predictable — NO involuntary Flow speed sabotage!)
 @export var walk_speed: float = 7.2
 @export var sprint_speed: float = 11.4
-@export var flow_speed_bonus: float = 2.0
+@export var flow_speed_bonus: float = 0.0
 @export var ground_accel: float = 52.0
 @export var ground_decel: float = 48.0
 @export var air_accel: float = 28.0
 @export var air_decel: float = 8.0
 
-@export var jump_velocity: float = 13.0
-@export var double_jump_velocity: float = 11.2
+@export var jump_velocity: float = 11.6
+@export var double_jump_velocity: float = 10.8
 @export var gravity_up: float = 26.0
 @export var gravity_down: float = 37.5
 @export var gravity_apex: float = 18.0
@@ -55,6 +56,9 @@ var _jump_buffer_timer: float = 0.0
 var _has_double_jump: bool = true
 var _has_air_dash: bool = true
 var _has_solar_charge: bool = false
+var _sky_focus_active: bool = false
+var _sky_focus_real_timer: float = 0.0
+var _prev_phone_focus_btn: bool = false
 var _can_jump_cut: bool = false
 var _bounce_arc_timer: float = 0.0
 
@@ -66,9 +70,14 @@ var _slide_dir: Vector3 = Vector3.FORWARD
 # Vesper Origami Flutter-Glide
 var _flutter_timer: float = 0.0
 var _is_fluttering: bool = false
+var _was_fluttering: bool = false
 
 # Sky-Dive & Meteor Super-Bounce grace
 var _recent_sky_dive_timer: float = 0.0
+
+# Viral Heart-Attack Fall Drama
+var _air_start_y: float = 0.0
+var _fall_wind_intensity: float = 0.0
 
 # Wall-Run
 var _wall_normal: Vector3 = Vector3.ZERO
@@ -133,6 +142,7 @@ func _ready() -> void:
 	_on_character_changed(GameState.selected_character)
 	_run_peak_pos = global_position
 	_run_peak_y = global_position.y
+	_air_start_y = global_position.y
 	camera_rig.snap_to(global_position, 0.0)
 
 
@@ -167,7 +177,7 @@ func _get_effective_coyote_time() -> float:
 
 
 func _get_effective_mantle_max_dy() -> float:
-	return 2.05 if GameState.selected_character == "pip" else 1.70
+	return 1.75 if GameState.selected_character == "pip" else 1.45
 
 
 func _get_effective_dash_speed() -> float:
@@ -185,13 +195,61 @@ func _get_effective_slide_jump_bonus() -> float:
 func _is_slide_held() -> bool:
 	if Input.is_action_pressed("slide"):
 		return true
+	if InputManager.is_gamepad_active() and InputManager.is_slide_held():
+		return true
 	if PhoneController.has_method("is_slide_held"):
 		return bool(PhoneController.call("is_slide_held"))
 	return false
 
 
+func _play_chirp(kind: String) -> void:
+	if AudioDirector.has_method("play_character_chirp"):
+		AudioDirector.call("play_character_chirp", GameState.selected_character, kind)
+
+
+func _set_fall_wind(intensity: float) -> void:
+	if AudioDirector.has_method("set_fall_wind_intensity"):
+		AudioDirector.call("set_fall_wind_intensity", intensity)
+
+
 func is_sky_dive_recent() -> bool:
 	return state == State.SKY_DIVE or _recent_sky_dive_timer > 0.0
+
+
+func is_sky_focus_active() -> bool:
+	return _sky_focus_active
+
+
+func _end_sky_focus() -> void:
+	if not _sky_focus_active:
+		return
+	_sky_focus_active = false
+	_sky_focus_real_timer = 0.0
+	Engine.time_scale = 1.0
+
+
+func _try_activate_sky_focus() -> void:
+	if _sky_focus_active:
+		_end_sky_focus()
+		return
+	if not _has_solar_charge or is_on_floor() or state in [State.REWIND, State.VICTORY_DIVE, State.MANTLE]:
+		return
+	_has_solar_charge = false
+	GameState.solar_charge_changed.emit(false)
+	char_rig.set_solar_charge_glow(false)
+	_sky_focus_active = true
+	_sky_focus_real_timer = 1.50
+	Engine.time_scale = 0.32
+	AudioDirector.play_flow_chime(7, -2.0)
+	char_rig.emit_burst(Vector3(0.0, 0.55, 0.0))
+	InputManager.rumble("clutch")
+	PhoneController.send_haptic("tether")
+	GameState.emit_callout("SKY FOCUS", "1.5s Slow-Motion Precision", Color(0.55, 0.94, 1.0))
+
+
+func _exit_tree() -> void:
+	if _sky_focus_active:
+		Engine.time_scale = 1.0
 
 
 func on_shrine_activated() -> void:
@@ -204,9 +262,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("reset_checkpoint") and state != State.REWIND:
 		_try_manual_rewind()
+	elif event is InputEventKey:
+		var kev := event as InputEventKey
+		if kev.pressed and not kev.echo and (kev.physical_keycode == KEY_TAB or kev.physical_keycode == KEY_V):
+			_try_activate_sky_focus()
+	elif event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_MIDDLE:
+			_try_activate_sky_focus()
 
 
 func _try_manual_rewind() -> void:
+	if GameState.is_purist_mode():
+		AudioDirector.play_sfx("ui_click", -4.0, 0.62)
+		GameState.emit_callout("PURIST MODE", "No Rewind — Climb Every Meter!", Color(1.0, 0.56, 0.32))
+		return
 	var cp_y := GameState.current_checkpoint_pos.y
 	if _rewind_locked_out:
 		if not is_on_floor() and velocity.y < -12.0 and global_position.y < cp_y - 8.0:
@@ -230,10 +300,27 @@ func _try_manual_rewind() -> void:
 
 func _physics_process(delta: float) -> void:
 	if not controls_enabled or not GameState.is_playing or GameState.is_paused or GameState.is_cutscene:
+		_end_sky_focus()
+		_fall_wind_intensity = 0.0
+		_set_fall_wind(0.0)
+		_was_fluttering = false
 		camera_rig.update_rig(global_position, Vector3.ZERO, 0.0, 0.0, false, delta)
 		char_rig.update_animation(Vector3.ZERO, Vector3.ZERO, true, "GROUNDED", 0.0, 0.0, delta)
 		landing_ring.visible = false
 		return
+
+	# Tick Sky Focus in real unscaled seconds so 1.5s always feels crisp & never sticks!
+	if _sky_focus_active:
+		var real_dt := delta / maxf(Engine.time_scale, 0.05)
+		_sky_focus_real_timer -= real_dt
+		if _sky_focus_real_timer <= 0.0 or is_on_floor():
+			_end_sky_focus()
+	else:
+		var phone_l1 := PhoneController.is_active() and PhoneController.is_sprint_active() and not is_on_floor()
+		var phone_focus_edge := phone_l1 and not _prev_phone_focus_btn
+		_prev_phone_focus_btn = phone_l1
+		if InputManager.consume_focus_just_pressed() or phone_focus_edge:
+			_try_activate_sky_focus()
 
 	_portal_cooldown = maxf(0.0, _portal_cooldown - delta)
 	_wall_cooldown = maxf(0.0, _wall_cooldown - delta)
@@ -241,8 +328,11 @@ func _physics_process(delta: float) -> void:
 	_bounce_arc_timer = maxf(0.0, _bounce_arc_timer - delta)
 	_is_fluttering = false
 
-	# Count down active 30-second Shrine Rewind window
-	if GameState.rewind_window_active:
+	# Count down active 30-second Shrine Rewind window (never active in Purist Mode)
+	if GameState.is_purist_mode():
+		if GameState.rewind_window_active:
+			GameState.set_rewind_window(0.0, false)
+	elif GameState.rewind_window_active:
 		var next_rem := GameState.rewind_window_remaining - delta
 		if next_rem <= 0.0:
 			_rewind_locked_out = true
@@ -267,18 +357,30 @@ func _physics_process(delta: float) -> void:
 			})
 
 	if state == State.REWIND:
+		_end_sky_focus()
+		_fall_wind_intensity = 0.0
+		_set_fall_wind(0.0)
 		_process_rewind(delta)
 		return
 
 	if state == State.MANTLE:
+		_fall_wind_intensity = 0.0
+		_set_fall_wind(0.0)
 		_process_mantle(delta)
 		return
 
 	if state == State.TETHER_ZIP:
+		_fall_wind_intensity = 0.0
+		_set_fall_wind(0.0)
 		_process_tether_zip(delta)
 		return
 
+	if state == State.VICTORY_DIVE:
+		_process_victory_dive(delta)
+		return
+
 	# True Vertical Fall Stakes: only auto-rewind in Cloud Sea (y < -14) or unrecoverable outer sky!
+	# In Purist Mode, safely drops you back to the Awakening Terrace (0m, World 1 start) instead of void soft-lock.
 	var radial := Vector2(global_position.x, global_position.z).length()
 	if global_position.y < -14.0:
 		begin_rewind_respawn(true)
@@ -291,14 +393,19 @@ func _physics_process(delta: float) -> void:
 	else:
 		_unrecoverable_sky_timer = 0.0
 
-	# Check remote Shrine Rewind button from iPhone DualSense controller
-	if PhoneController.consume_rewind_just_pressed() and state != State.REWIND:
+	# Check remote Shrine Rewind button from iPhone DualSense or Physical Gamepad
+	var remote_rewind := PhoneController.consume_rewind_just_pressed() or InputManager.consume_rewind_just_pressed()
+	if remote_rewind and state != State.REWIND:
 		_try_manual_rewind()
 		if state == State.REWIND:
 			return
 
-	# Input sampling (Keyboard WASD + iPhone DualSense Left Analog Thumbstick — identical 1:1 speed)
+	# Input sampling (Keyboard WASD + Physical Gamepad Left Stick + iPhone DualSense Left Stick)
 	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if InputManager.is_gamepad_active():
+		var gp_vec := InputManager.get_move_vector()
+		if gp_vec.length_squared() > input_vec.length_squared():
+			input_vec = gp_vec
 	if PhoneController.is_active():
 		var p_vec := PhoneController.get_move_vector()
 		if p_vec.length_squared() > input_vec.length_squared():
@@ -311,28 +418,27 @@ func _physics_process(delta: float) -> void:
 		move_dir = move_dir.normalized()
 
 	var phone_jump_pressed := PhoneController.consume_jump_just_pressed()
-	if Input.is_action_just_pressed("jump") or phone_jump_pressed:
+	var gp_jump_pressed := InputManager.consume_jump_just_pressed()
+	if Input.is_action_just_pressed("jump") or phone_jump_pressed or gp_jump_pressed:
 		_jump_buffer_timer = jump_buffer_time
 	else:
 		_jump_buffer_timer = maxf(0.0, _jump_buffer_timer - delta)
 
+	var slide_just_pressed := Input.is_action_just_pressed("slide") or PhoneController.consume_slide_just_pressed() or InputManager.consume_slide_just_pressed()
+
 	# Refresh best tether orb in sight for HUD lock-on indicator & context-smart Dash/Tether input
 	_hovered_tether_orb = _find_best_tether_orb()
 
-	# Dash / Tether Zip Trigger (E, Q, Right-Click, Shift in mid-air, or iPhone □ / R2)
+	# Dash / Tether Zip Trigger (E, Q, Right-Click, Shift in mid-air, Gamepad X/□/R2, or iPhone □ / R2)
 	var shift_air_dash := Input.is_action_just_pressed("sprint") and (not is_on_floor() or _hovered_tether_orb != null)
 	var phone_dash_pressed := PhoneController.consume_dash_just_pressed()
-	if Input.is_action_just_pressed("dash") or shift_air_dash or phone_dash_pressed:
+	var gp_dash_pressed := InputManager.consume_dash_just_pressed()
+	if Input.is_action_just_pressed("dash") or shift_air_dash or phone_dash_pressed or gp_dash_pressed:
 		if _hovered_tether_orb != null:
 			_start_tether_zip(_hovered_tether_orb)
 			return
 		elif _has_air_dash and state != State.DASH:
 			_start_dash(move_dir if move_dir.length_squared() > 0.01 else cam_fwd, false)
-		elif _has_solar_charge and state != State.DASH:
-			_has_solar_charge = false
-			GameState.solar_charge_changed.emit(false)
-			char_rig.set_solar_charge_glow(false)
-			_start_dash(move_dir if move_dir.length_squared() > 0.01 else cam_fwd, true)
 
 	# Sky-Dive entry while airborne & past apex / descending
 	if state == State.AIR and not is_on_floor() and velocity.y < 3.5 and _is_slide_held():
@@ -355,7 +461,11 @@ func _physics_process(delta: float) -> void:
 		State.SKY_DIVE:
 			_process_sky_dive(move_dir, delta)
 		_:
-			_process_standard_move(move_dir, delta)
+			_process_standard_move(move_dir, slide_just_pressed, delta)
+
+	if _is_fluttering and not _was_fluttering:
+		_play_chirp("hop")
+	_was_fluttering = _is_fluttering
 
 	if state == State.SKY_DIVE:
 		_recent_sky_dive_timer = 0.14
@@ -373,7 +483,7 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Landing detection, Rhythm Jump Chain & 30s Shrine Rewind trigger
+	# Landing detection, Viral Heart-Attack Fall Drama, Rhythm Jump Chain & 30s Shrine Rewind trigger
 	var on_floor := is_on_floor()
 	if on_floor:
 		_coyote_timer = _get_effective_coyote_time()
@@ -386,6 +496,18 @@ func _physics_process(delta: float) -> void:
 		_peak_fall_speed = 0.0
 
 		if not _was_on_floor:
+			var drop_m := _air_start_y - global_position.y
+			var heart_drop := drop_m >= 25.0
+			if heart_drop:
+				AudioDirector.play_sfx("heart_drop", -2.5, 1.0)
+				camera_rig.add_shake(0.34)
+				InputManager.rumble("land")
+				GameState.emit_callout(
+					"-%.0fm DROP!" % drop_m,
+					"%.0fm → %.0fm" % [maxf(0.0, _air_start_y), maxf(0.0, global_position.y)],
+					Color(1.0, 0.44, 0.28)
+				)
+
 			# Rhythm Jump Chain window opens if landing fast or off an aerial move
 			if pre_move_horiz > 9.5 or _had_chain_source:
 				_landing_chain_timer = 0.16
@@ -404,6 +526,8 @@ func _physics_process(delta: float) -> void:
 					camera_rig.add_shake(0.22)
 				AudioDirector.play_sfx("land_thud", -3.5 if heavy_dive else -5.0, 0.84 if heavy_dive else randf_range(0.92, 1.08))
 				PhoneController.send_haptic("land")
+				if not heart_drop:
+					InputManager.rumble("land")
 		else:
 			_landing_chain_timer = maxf(0.0, _landing_chain_timer - delta)
 			if _landing_chain_timer <= 0.0 and state != State.SLIDE:
@@ -418,21 +542,24 @@ func _physics_process(delta: float) -> void:
 				high_water_passed.emit(_run_peak_y)
 				GameState.emit_callout("HIGH POINT SURPASSED!", "%.0fm" % _run_peak_y, Color(1.0, 0.86, 0.34))
 
-		# 30-second Shrine Rewind window check on safe landing
-		var cp_y := GameState.current_checkpoint_pos.y
-		if global_position.y <= cp_y - 6.0:
-			if not GameState.rewind_window_active and not _rewind_locked_out:
-				GameState.set_rewind_window(GameState.REWIND_WINDOW_MAX, true)
-		elif global_position.y >= cp_y - 3.0:
-			_rewind_locked_out = false
-			if GameState.rewind_window_active:
-				GameState.set_rewind_window(0.0, false)
+		# 30-second Shrine Rewind window check on safe landing (disabled in Purist Mode)
+		if not GameState.is_purist_mode():
+			var cp_y := GameState.current_checkpoint_pos.y
+			if global_position.y <= cp_y - 6.0:
+				if not GameState.rewind_window_active and not _rewind_locked_out:
+					GameState.set_rewind_window(GameState.REWIND_WINDOW_MAX, true)
+			elif global_position.y >= cp_y - 3.0:
+				_rewind_locked_out = false
+				if GameState.rewind_window_active:
+					GameState.set_rewind_window(0.0, false)
 	else:
+		if _was_on_floor:
+			_air_start_y = global_position.y
 		_coyote_timer = maxf(0.0, _coyote_timer - delta)
 		_landing_chain_timer = 0.0
 		if state == State.GROUNDED:
 			state = State.AIR
-		if global_position.y >= GameState.current_checkpoint_pos.y - 1.5:
+		if not GameState.is_purist_mode() and global_position.y >= GameState.current_checkpoint_pos.y - 1.5:
 			_rewind_locked_out = false
 			if GameState.rewind_window_active:
 				GameState.set_rewind_window(0.0, false)
@@ -442,6 +569,19 @@ func _physics_process(delta: float) -> void:
 			_run_peak_pos = global_position
 			high_water_passed.emit(_run_peak_y)
 			GameState.emit_callout("HIGH POINT SURPASSED!", "%.0fm" % _run_peak_y, Color(1.0, 0.86, 0.34))
+
+	# Dynamic fall-rush + high-altitude vertigo edge-look wind intensity
+	var vertigo_wind := 0.0
+	if global_position.y > 60.0 and camera_rig.pitch < -0.50:
+		vertigo_wind = clampf((-camera_rig.pitch - 0.50) / 0.55, 0.0, 1.0) * clampf((global_position.y - 60.0) / 340.0, 0.25, 1.0) * 0.42
+	if not on_floor and velocity.y < -15.0:
+		var target_wind := clampf((-velocity.y - 15.0) / 21.0, 0.0, 1.0)
+		_fall_wind_intensity = lerpf(_fall_wind_intensity, maxf(target_wind, vertigo_wind), clampf(delta * 8.0, 0.0, 1.0))
+	else:
+		_fall_wind_intensity = lerpf(_fall_wind_intensity, vertigo_wind, clampf(delta * 6.0, 0.0, 1.0))
+		if _fall_wind_intensity < 0.005:
+			_fall_wind_intensity = 0.0
+	_set_fall_wind(_fall_wind_intensity)
 
 	# Plant High-Water Flag when falling > 10m below peak
 	if not _high_water_active and _run_peak_y >= 12.0 and global_position.y < _run_peak_y - 10.0:
@@ -468,12 +608,12 @@ func _physics_process(delta: float) -> void:
 			if flow_value <= 0.02:
 				flow_streak = 0
 
-	if flow_value >= 0.92 and flow_streak >= 4 and not _has_solar_charge:
+	if flow_value >= 0.85 and flow_streak >= 3 and not _has_solar_charge:
 		_has_solar_charge = true
 		GameState.solar_charge_changed.emit(true)
 		char_rig.set_solar_charge_glow(true)
 		AudioDirector.play_flow_chime(6, -1.5)
-		GameState.emit_callout("SOLAR CHARGE!", "Bonus Mid-Air Dash Ready", Color(1.0, 0.88, 0.32))
+		GameState.emit_callout("SKY FOCUS READY!", "Press %s mid-air for 1.5s Slow-Mo" % InputManager.get_glyph("focus"), Color(0.55, 0.94, 1.0))
 
 	# Rhythmic Tactile Footsteps
 	if on_floor and state == State.GROUNDED and horiz_spd > 1.8:
@@ -494,16 +634,17 @@ func _physics_process(delta: float) -> void:
 	char_rig.update_animation(velocity, move_dir, on_floor, anim_state, _wall_side, flow_value, delta)
 
 
-func _process_standard_move(move_dir: Vector3, delta: float) -> void:
-	var sprinting := Input.is_action_pressed("sprint") or PhoneController.is_sprint_active() or flow_value > 0.45
-	var base_spd := (sprint_speed if sprinting else walk_speed) + flow_value * flow_speed_bonus
+func _process_standard_move(move_dir: Vector3, slide_pressed: bool, delta: float) -> void:
+	# 100% predictable speed control: Flow (Solar Resonance) NEVER forces sprint or adds unwanted speed!
+	var gp_sprint := InputManager.is_gamepad_active() and InputManager.is_sprint_held()
+	var sprinting := Input.is_action_pressed("sprint") or gp_sprint or PhoneController.is_sprint_active()
+	var base_spd := sprint_speed if sprinting else walk_speed
 	var throttle := 1.0 if sprinting else clampf(_input_analog_mag, 0.20, 1.0)
 	var max_spd := base_spd * throttle
 	var eff_slide_speed := _get_effective_slide_speed()
 
-	# Slide-Dive entry (C / Ctrl / iPhone ○ or L2 while running!)
-	var phone_slide := PhoneController.consume_slide_just_pressed()
-	if is_on_floor() and (Input.is_action_just_pressed("slide") or phone_slide) and (Vector2(velocity.x, velocity.z).length() > 4.2 or move_dir.length_squared() > 0.2):
+	# Slide-Dive entry (C / Ctrl / Gamepad B/○/L2 / iPhone ○ or L2 while running!)
+	if is_on_floor() and slide_pressed and (Vector2(velocity.x, velocity.z).length() > 4.2 or move_dir.length_squared() > 0.2):
 		state = State.SLIDE
 		_slide_timer = slide_duration
 		_slide_dir = move_dir if move_dir.length_squared() > 0.01 else Vector3(velocity.x, 0.0, velocity.z).normalized()
@@ -516,6 +657,7 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 		char_rig.emit_burst(Vector3(0.0, 0.1, 0.0))
 		AudioDirector.play_sfx("slide", -4.0, randf_range(0.95, 1.08))
 		PhoneController.send_haptic("slide")
+		InputManager.rumble("slide")
 		return
 
 	# Horizontal acceleration/deceleration (crisp on ground, responsive in air)
@@ -562,7 +704,9 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			char_rig.trigger_squash(Vector3(0.80, 1.26, 0.80))
 			char_rig.emit_burst(Vector3(0.0, 0.08, 0.0))
 			AudioDirector.play_sfx("jump", -3.0, randf_range(0.96, 1.06))
+			_play_chirp("hop")
 			PhoneController.send_haptic("jump")
+			InputManager.rumble("jump")
 		elif _has_double_jump:
 			velocity.y = double_jump_velocity
 			_has_double_jump = false
@@ -573,11 +717,14 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 			state = State.AIR
 			char_rig.trigger_double_jump_flip()
 			AudioDirector.play_sfx("double_jump", -2.5, randf_range(0.98, 1.08))
+			_play_chirp("hop")
 			PhoneController.send_haptic("double_jump")
+			InputManager.rumble("double_jump")
 
 	# Asymmetric Crisp Gravity + Apex Hang-Time + Vesper Origami Flutter-Glide!
 	if not is_on_floor():
-		var jump_held := Input.is_action_pressed("jump") or PhoneController.is_jump_held()
+		var gp_jump_held := InputManager.is_gamepad_active() and InputManager.is_jump_held()
+		var jump_held := Input.is_action_pressed("jump") or gp_jump_held or PhoneController.is_jump_held()
 		if GameState.selected_character == "vesper" and state == State.AIR and velocity.y < -1.5 and jump_held and _flutter_timer < 0.85:
 			_is_fluttering = true
 			_flutter_timer += delta
@@ -602,6 +749,100 @@ func _process_standard_move(move_dir: Vector3, delta: float) -> void:
 		velocity.y = maxf(velocity.y, -38.0)
 
 
+func start_victory_skydive() -> void:
+	## Launches the celebratory 1,085m -> 0m Victory Skydive past all 6 illuminated realms
+	## right back to the Awakening Terrace beside The Dawnbreaker Airship!
+	state = State.VICTORY_DIVE
+	GameState.victory_skydive_active = true
+	global_position = Vector3(0.0, 1085.5, 11.8)
+	velocity = Vector3(0.0, 5.5, 16.5)
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.0
+	_peak_fall_speed = 0.0
+	camera_rig.snap_to(global_position, PI)
+	camera_rig.pitch = -0.68
+	char_rig.clear_trail()
+	char_rig.set_solar_charge_glow(true)
+	char_rig.emit_burst(Vector3(0.0, 0.5, 0.0))
+	AudioDirector.play_sfx("dash", -0.5, 1.15)
+	_play_chirp("joy")
+	GameState.emit_callout("VICTORY SKYDIVE!", "Soar 1,085m → 0m Back to The Dawnbreaker!", Color(1.0, 0.88, 0.36))
+
+
+func _process_victory_dive(delta: float) -> void:
+	# Responsive 3D aerial steering + flare-to-glide (Jump) + turbo-dive (Slide)
+	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if InputManager.is_gamepad_active():
+		var gp_vec := InputManager.get_move_vector()
+		if gp_vec.length_squared() > input_vec.length_squared():
+			input_vec = gp_vec
+	if PhoneController.is_active():
+		var p_vec := PhoneController.get_move_vector()
+		if p_vec.length_squared() > input_vec.length_squared():
+			input_vec = p_vec
+
+	var cam_fwd := camera_rig.get_forward_xz()
+	var cam_right := camera_rig.get_right_xz()
+	var steer_dir := cam_right * input_vec.x - cam_fwd * input_vec.y
+	if steer_dir.length_squared() > 0.001:
+		steer_dir = steer_dir.normalized()
+
+	var gp_jump := InputManager.is_gamepad_active() and InputManager.is_jump_held()
+	var flare_held := Input.is_action_pressed("jump") or gp_jump or PhoneController.is_jump_held()
+	var fast_held := _is_slide_held()
+
+	var target_fall := -24.0 if flare_held else (-60.0 if fast_held else -40.0)
+	var steer_spd := 28.0 if flare_held else 24.0
+
+	# Below Y = 110m, gently home toward the Awakening Terrace (0, 0.5, 26) for a heroic touchdown!
+	var terrace_target := Vector3(0.0, 0.5, 26.0)
+	if global_position.y < 110.0:
+		var home_t := clampf((110.0 - global_position.y) / 95.0, 0.0, 1.0)
+		var to_home := Vector3(terrace_target.x - global_position.x, 0.0, terrace_target.z - global_position.z)
+		var desired_h := to_home * clampf(home_t * 2.2, 0.4, 2.2) + steer_dir * (steer_spd * (1.0 - home_t * 0.75))
+		velocity.x = lerpf(velocity.x, clampf(desired_h.x, -30.0, 30.0), clampf(delta * 4.2, 0.0, 1.0))
+		velocity.z = lerpf(velocity.z, clampf(desired_h.z, -30.0, 30.0), clampf(delta * 4.2, 0.0, 1.0))
+		target_fall = lerpf(target_fall, -12.0, home_t * home_t)
+	else:
+		if steer_dir.length_squared() > 0.001:
+			velocity.x = move_toward(velocity.x, steer_dir.x * steer_spd, 36.0 * delta)
+			velocity.z = move_toward(velocity.z, steer_dir.z * steer_spd, 36.0 * delta)
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, 10.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 10.0 * delta)
+
+	velocity.y = move_toward(velocity.y, target_fall, 42.0 * delta)
+	move_and_slide()
+
+	var wind_t := clampf((-velocity.y - 14.0) / 38.0, 0.25, 1.0)
+	_fall_wind_intensity = lerpf(_fall_wind_intensity, wind_t, clampf(delta * 6.0, 0.0, 1.0))
+	_set_fall_wind(_fall_wind_intensity)
+
+	GameState.update_altitude(global_position.y)
+	_update_landing_ring()
+	camera_rig.update_rig(global_position, velocity, 1.0, 0.0, fast_held, delta)
+	char_rig.update_animation(velocity, steer_dir, false, "FLUTTER" if flare_held else "SKY_DIVE", 0.0, 1.0, delta)
+
+	if global_position.y <= 1.25 or (global_position.y < 22.0 and is_on_floor()):
+		global_position = Vector3(terrace_target.x, 0.65, terrace_target.z)
+		velocity = Vector3.ZERO
+		state = State.GROUNDED
+		GameState.victory_skydive_active = false
+		_fall_wind_intensity = 0.0
+		_set_fall_wind(0.0)
+		char_rig.set_solar_charge_glow(false)
+		char_rig.trigger_squash(Vector3(1.42, 0.58, 1.42))
+		char_rig.emit_burst(Vector3(0.0, 0.25, 0.0))
+		camera_rig.add_shake(0.38)
+		AudioDirector.play_sfx("summit_fanfare", -1.5, 1.08)
+		AudioDirector.play_sfx("firework_pop", -1.0, 1.0)
+		_play_chirp("joy")
+		InputManager.rumble("summit")
+		PhoneController.send_haptic("shard")
+		GameState.emit_callout("HOME AGAIN!", "The Dawnbreaker Welcomes the Sun-Bringer", Color(1.0, 0.88, 0.40))
+		victory_skydive_landed.emit()
+
+
 func _process_sky_dive(move_dir: Vector3, delta: float) -> void:
 	if not _is_slide_held():
 		state = State.AIR
@@ -619,7 +860,7 @@ func _process_sky_dive(move_dir: Vector3, delta: float) -> void:
 		PhoneController.send_haptic("double_jump")
 		return
 
-	var dive_max_spd := sprint_speed + flow_value * flow_speed_bonus + 1.5
+	var dive_max_spd := sprint_speed + 1.5
 	var dive_accel := air_accel * 1.35
 	if move_dir.length_squared() > 0.001:
 		var target_vx := move_dir.x * dive_max_spd
@@ -705,8 +946,8 @@ func _process_dash(delta: float) -> void:
 	velocity.z = _dash_dir.z * eff_dash
 	velocity.y = lerpf(velocity.y, 0.0, clampf(delta * 10.0, 0.0, 1.0))
 	if _dash_timer <= 0.0:
-		velocity.x = _dash_dir.x * (sprint_speed + flow_value * flow_speed_bonus + 1.5)
-		velocity.z = _dash_dir.z * (sprint_speed + flow_value * flow_speed_bonus + 1.5)
+		velocity.x = _dash_dir.x * (sprint_speed + 1.0)
+		velocity.z = _dash_dir.z * (sprint_speed + 1.0)
 		state = State.GROUNDED if is_on_floor() else State.AIR
 
 
@@ -787,7 +1028,7 @@ func _process_wall_run(_move_dir: Vector3, delta: float) -> void:
 		tangent = -tangent
 	tangent = tangent.normalized()
 
-	var run_spd := maxf(Vector2(velocity.x, velocity.z).length(), wall_run_min_speed + flow_value * 2.2)
+	var run_spd := maxf(Vector2(velocity.x, velocity.z).length(), wall_run_min_speed)
 	velocity.x = tangent.x * run_spd - _wall_normal.x * 2.2
 	velocity.z = tangent.z * run_spd - _wall_normal.z * 2.2
 	velocity.y = maxf(velocity.y - wall_run_gravity * delta, -2.2)
@@ -1061,6 +1302,8 @@ func apply_portal_warp(dest_pos: Vector3, exit_dir: Vector3, launch_speed: float
 
 
 func teleport_to_checkpoint(pos: Vector3, yaw_rad: float = 0.0) -> void:
+	_end_sky_focus()
+	GameState.victory_skydive_active = false
 	global_position = pos + Vector3(0.0, 0.35, 0.0)
 	velocity = Vector3.ZERO
 	_has_double_jump = true

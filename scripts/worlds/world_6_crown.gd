@@ -91,6 +91,13 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_shrine(self, "w6_cp2", 5, cp2, 145.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, BRAZIER, cp2 + Vector3(-2.3, 0.0, 1.5), 90.0, STYLE, Color(1.0, 0.74, 0.28))
 
+	# PRO SHORTCUT #5: "Solar Ring Stratosphere Skip"
+	WorldHelper.add_bounce_pad(self, VENT, Vector3(-32.2, 977.5, 14.5), 26.2, 2.4, Vector3(6.5, 0.0, 6.5), STYLE, [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-32.2, 978.5, 14.5), Vector3(-16.0, 995.5, 27.5), 4.2, 4)
+	WorldHelper.add_tether_orb(self, Vector3(-16.0, 995.5, 27.5), [])
+	WorldHelper.add_solar_mote_arc(self, Vector3(-16.0, 995.5, 27.5), Vector3(8.5, 1001.0, 24.5), 3.2, 4)
+	WorldHelper.add_shortcut_beacon(self, Vector3(20.5, 1006.5, 17.5), -45.0, "SOLAR RING SKIP!", "STRATOSPHERE SHORTCUT")
+
 	# =========================================================================
 	# ACT 17 (976m -> 1,034m): The Golden Remix Gauntlet
 	# =========================================================================
@@ -118,6 +125,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	WorldHelper.add_static_cyl_platform(self, DAIS, cp3, 3.0, 0.8, Vector3(1.35, 1.0, 1.35), Vector3.ZERO, STYLE, audit, "checkpoint_pad")
 	WorldHelper.add_shrine(self, "w6_cp3", 5, cp3, 68.0, false, false, audit)
 	WorldHelper.add_dressing_cluster(self, BRAZIER, cp3 + Vector3(2.2, 0.0, -1.6), -120.0, STYLE, Color(1.0, 0.74, 0.28))
+	WorldHelper.add_world_hint(self, cp3 + Vector3(-1.8, 2.25, -2.0), "CHRONICLE VI — THE DYING SUN-HEART", "52m remain. Touch the Solstice Crown ahead to relight dawn across the valley.")
 
 	# =========================================================================
 	# ACT 18 (1,033m -> 1,085m): Final Zenith Leap to The Crown of the Sun!
@@ -140,6 +148,7 @@ func build(start_pos: Vector3, audit: Array) -> Vector3:
 	var summit_pos := Vector3(0.0, 1084.5, 0.0)
 	WorldHelper.add_static_cyl_platform(self, SUMMIT, summit_pos, 9.7, 1.2, Vector3.ONE, Vector3.ZERO, STYLE, audit, "summit_crown")
 	WorldHelper.add_shrine(self, "summit_crown", 5, summit_pos + Vector3(0.0, 0.38, 0.0), 0.0, false, true, audit)
+	WorldHelper.add_summit_celebration(self, summit_pos)
 
 	# Radiant Golden Summit Sun Light + Warm Perimeter Brazier Light Pools & Bokeh Halos!
 	WorldHelper.add_warm_light_pool(self, summit_pos + Vector3(0.0, 10.5, 0.0), Color(1.0, 0.84, 0.44), 6.5, 42.0, true, 5.2)
