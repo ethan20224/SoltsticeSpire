@@ -1026,12 +1026,15 @@ static func add_crumbling_tile(parent: Node3D, glb_path: String, pos: Vector3, b
 
 
 static func add_wall_run(parent: Node3D, glb_path: String, pos: Vector3, rot_deg: Vector3,
-		box_size: Vector3, is_bell: bool = false, bell_step: int = 0, audit: Array = []) -> WallRunSurface:
+		box_size: Vector3, is_bell: bool = false, bell_step: int = 0, audit: Array = [],
+		resonance_group: String = "", resonance_dur: float = 8.0) -> WallRunSurface:
 	var wr := WallRunSurface.new()
 	wr.position = pos
 	wr.rotation_degrees = rot_deg
 	wr.is_musical_bell = is_bell
 	wr.bell_note_step = bell_step
+	wr.resonance_group = resonance_group
+	wr.resonance_duration = resonance_dur
 
 	var col := CollisionShape3D.new()
 	var bx := BoxShape3D.new()
@@ -1095,10 +1098,13 @@ static func add_pendulum(parent: Node3D, pivot_pos: Vector3, rot_y_deg: float = 
 	return pd
 
 
-static func add_folding_tile(parent: Node3D, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO, audit: Array = []) -> FoldingBridge:
+static func add_folding_tile(parent: Node3D, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO,
+		audit: Array = [], domino: bool = false, is_starter: bool = false) -> FoldingBridge:
 	var fb := FoldingBridge.new()
 	fb.position = pos
 	fb.rotation_degrees = rot_deg
+	fb.domino_mode = domino
+	fb.domino_is_starter = is_starter
 
 	var col := CollisionShape3D.new()
 	var bx := BoxShape3D.new()
@@ -1116,8 +1122,9 @@ static func add_folding_tile(parent: Node3D, pos: Vector3, rot_deg: Vector3 = Ve
 
 
 static func add_portal_pair(parent: Node3D, entry_pos: Vector3, entry_yaw_deg: float,
-		exit_pos: Vector3, exit_yaw_deg: float, launch_speed: float = 20.0, audit: Array = []) -> void:
-	var exit_fwd := Vector3(-sin(deg_to_rad(exit_yaw_deg)), 0.38, -cos(deg_to_rad(exit_yaw_deg))).normalized()
+		exit_pos: Vector3, exit_yaw_deg: float, launch_speed: float = 20.0, audit: Array = [],
+		preserve_momentum: bool = false, floor_entry: bool = false, exit_pitch_up: float = 0.38) -> void:
+	var exit_fwd := Vector3(-sin(deg_to_rad(exit_yaw_deg)), exit_pitch_up, -cos(deg_to_rad(exit_yaw_deg))).normalized()
 
 	var p_in := PortalFrame.new()
 	p_in.position = entry_pos
@@ -1125,7 +1132,13 @@ static func add_portal_pair(parent: Node3D, entry_pos: Vector3, entry_yaw_deg: f
 	p_in.exit_target_pos = exit_pos + Vector3(0.0, 2.2, 0.0) + exit_fwd * 1.4
 	p_in.exit_launch_dir = exit_fwd
 	p_in.exit_launch_speed = launch_speed
-	p_in.add_child(load_glb("res://assets/models/world4_mirrors/gilded_portal_frame.glb"))
+	p_in.preserve_entry_momentum = preserve_momentum
+	p_in.is_horizontal_floor = floor_entry
+	var in_mesh := load_glb("res://assets/models/world4_mirrors/gilded_portal_frame.glb")
+	if floor_entry:
+		in_mesh.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		in_mesh.position = Vector3(0.0, 0.10, 2.1)
+	p_in.add_child(in_mesh)
 	parent.add_child(p_in)
 
 	var p_out := PortalFrame.new()
@@ -1136,7 +1149,7 @@ static func add_portal_pair(parent: Node3D, entry_pos: Vector3, entry_yaw_deg: f
 	parent.add_child(p_out)
 
 	audit.append({"pos": entry_pos, "kind": "portal_in", "radius": 2.4, "portal_exit": exit_pos})
-	audit.append({"pos": exit_pos, "kind": "portal_out", "radius": 2.4})
+	audit.append({"pos": exit_pos, "kind": "portal_out", "radius": 2.4, "boost_speed": launch_speed})
 
 
 static func add_updraft(parent: Node3D, pos: Vector3, height: float = 16.0, radius: float = 2.8,
@@ -1278,6 +1291,184 @@ static func add_docked_airship(parent: Node3D, pos: Vector3, rot_y_deg: float = 
 	ship.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
 	parent.add_child(ship)
 	return ship
+
+
+static func add_dash_prism(parent: Node3D, pos: Vector3, col: Color = Color(0.45, 0.96, 1.0),
+		boost_up: float = 10.2, audit: Array = []) -> DashPrism:
+	var dp := DashPrism.new()
+	dp.position = pos
+	dp.accent_color = col
+	dp.boost_up = boost_up
+	parent.add_child(dp)
+	audit.append({"pos": pos, "kind": "dash_prism", "radius": 2.0, "boost_y": 6.5})
+	return dp
+
+
+static func add_meteor_trigger(parent: Node3D, pos: Vector3, theme: String = "bud",
+		launch_up: float = 28.5, launch_fwd: Vector3 = Vector3.ZERO, linked_group: String = "",
+		audit: Array = []) -> MeteorTrigger:
+	var mt := MeteorTrigger.new()
+	mt.position = pos
+	mt.theme_style = theme
+	mt.launch_up = launch_up
+	mt.launch_fwd = launch_fwd
+	mt.linked_group = linked_group
+	parent.add_child(mt)
+	audit.append({"pos": pos, "kind": "meteor_trigger", "radius": 2.6, "boost_y": (launch_up * launch_up) / (2.0 * 26.0)})
+	return mt
+
+
+static func add_slide_obstacle(parent: Node3D, pos: Vector3, rot_y_deg: float = 0.0,
+		width: float = 4.6, col: Color = Color(1.0, 0.68, 0.24), sweep_amp: float = 0.0, sweep_spd: float = 1.8) -> SlideObstacle:
+	var so := SlideObstacle.new()
+	so.position = pos
+	so.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	so.gate_width = width
+	so.accent_color = col
+	so.sweep_amplitude = sweep_amp
+	so.sweep_speed = sweep_spd
+	parent.add_child(so)
+	return so
+
+
+static func add_grind_rail(parent: Node3D, points: PackedVector3Array, col: Color = Color(1.0, 0.82, 0.34),
+		speed: float = 22.0, end_boost: float = 11.2, audit: Array = []) -> GrindRail:
+	var gr := GrindRail.new()
+	gr.rail_points = points
+	gr.rail_color = col
+	gr.rail_speed = speed
+	gr.end_boost_up = end_boost
+	parent.add_child(gr)
+	if points.size() >= 2:
+		audit.append({"pos": points[0], "kind": "rail_in", "radius": 2.4})
+		audit.append({"pos": points[points.size() - 1], "kind": "rail_out", "radius": 2.4, "boost_y": 6.5})
+	return gr
+
+
+static func add_momentum_ramp(parent: Node3D, pos: Vector3, rot_y_deg: float,
+		length_m: float = 13.0, drop_m: float = 5.5, fwd_spd: float = 22.0, up_spd: float = 24.5,
+		col: Color = Color(1.0, 0.80, 0.30), audit: Array = []) -> MomentumRamp:
+	var mr := MomentumRamp.new()
+	mr.position = pos
+	mr.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	mr.ramp_length = length_m
+	mr.drop_height = drop_m
+	mr.launch_speed_fwd = fwd_spd
+	mr.launch_speed_up = up_spd
+	mr.accent_color = col
+	parent.add_child(mr)
+	var fwd := Vector3(-sin(deg_to_rad(rot_y_deg)), 0.0, -cos(deg_to_rad(rot_y_deg))).normalized()
+	var lip_world := pos + fwd * (length_m + 1.4) + Vector3(0.0, -drop_m + 0.45, 0.0)
+	audit.append({"pos": pos, "kind": "ramp_in", "radius": 2.4})
+	audit.append({"pos": lip_world, "kind": "ramp_out", "radius": 2.6, "boost_y": (up_spd * up_spd) / (2.0 * 26.0)})
+	return mr
+
+
+static func add_flow_express(parent: Node3D, pos: Vector3, rot_y_deg: float = 0.0,
+		sz: Vector3 = Vector3(3.8, 0.36, 9.5)) -> FlowExpress:
+	var fe := FlowExpress.new()
+	fe.position = pos
+	fe.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	fe.pad_size = sz
+	parent.add_child(fe)
+	return fe
+
+
+static func add_shard_trial(parent: Node3D, pos: Vector3, shard_id: String, title: String,
+		ring_pts: PackedVector3Array, time_lim: float = 11.5) -> ShardTrial:
+	var st := ShardTrial.new()
+	st.position = pos
+	st.shard_id = shard_id
+	st.trial_title = title
+	st.ring_positions = ring_pts
+	st.time_limit = time_lim
+	parent.add_child(st)
+	return st
+
+
+static func add_seesaw(parent: Node3D, pos: Vector3, rot_y_deg: float, length_m: float = 9.2,
+		width_m: float = 3.2, col: Color = Color(0.26, 0.68, 0.34), audit: Array = []) -> SeesawPlatform:
+	var ss := SeesawPlatform.new()
+	ss.position = pos
+	ss.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	ss.plank_length = length_m
+	ss.plank_width = width_m
+	ss.accent_color = col
+	parent.add_child(ss)
+	audit.append({"pos": pos, "kind": "seesaw", "radius": length_m * 0.46})
+	return ss
+
+
+static func add_resonant_target(parent: Node3D, pos: Vector3, rot_y_deg: float, mode: String,
+		listen_grp: String, sz: Vector3 = Vector3(3.8, 0.45, 10.5), cannon_up: float = 28.0,
+		cannon_fwd: Vector3 = Vector3.ZERO, req_groups: PackedStringArray = PackedStringArray(),
+		permanent: bool = false, audit: Array = []) -> ResonantTarget:
+	var rt := ResonantTarget.new()
+	rt.position = pos
+	rt.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	rt.target_mode = mode
+	rt.listen_group = listen_grp
+	rt.bridge_size = sz
+	rt.cannon_up = cannon_up
+	rt.cannon_fwd = cannon_fwd
+	rt.required_groups = req_groups
+	rt.stay_permanent_on_unlock = permanent
+	parent.add_child(rt)
+	if mode == "bridge":
+		audit.append({"pos": pos, "kind": "platform", "radius": maxf(sz.x, sz.z) * 0.5})
+	else:
+		audit.append({"pos": pos, "kind": "bounce", "radius": 2.8, "boost_y": (cannon_up * cannon_up) / (2.0 * 26.0)})
+	return rt
+
+
+static func add_monsoon_wind(parent: Node3D, center: Vector3, sz: Vector3, wind_dir: Vector3,
+		force: float = 22.0) -> MonsoonWindZone:
+	var mw := MonsoonWindZone.new()
+	mw.position = center
+	mw.zone_size = sz
+	mw.wind_direction = wind_dir
+	mw.gust_force = force
+	parent.add_child(mw)
+	return mw
+
+
+static func add_phase_platform(parent: Node3D, pos: Vector3, phase_id: int,
+		sz: Vector3 = Vector3(4.2, 0.42, 4.2), rot_y_deg: float = 0.0, audit: Array = []) -> PhasePlatform:
+	var pp := PhasePlatform.new()
+	pp.position = pos
+	pp.phase_id = phase_id
+	pp.slab_size = sz
+	pp.rotation_degrees = Vector3(0.0, rot_y_deg, 0.0)
+	parent.add_child(pp)
+	audit.append({"pos": pos, "kind": "phase_platform", "radius": maxf(sz.x, sz.z) * 0.5})
+	return pp
+
+
+static func add_rideable_whale(parent: Node3D, center: Vector3, orbit_r: float = 27.0,
+		spd: float = 0.24, spout_up: float = 31.0, audit: Array = []) -> RideableWhale:
+	var rw := RideableWhale.new()
+	rw.orbit_center = center
+	rw.orbit_radius = orbit_r
+	rw.orbit_speed_rad = spd
+	rw.spout_launch_up = spout_up
+	parent.add_child(rw)
+	audit.append({"pos": center + Vector3(0.0, 2.2, orbit_r), "kind": "whale_ride", "radius": orbit_r + 4.0, "boost_y": 24.0})
+	return rw
+
+
+static func add_armillary_ring(parent: Node3D, center: Vector3, radius: float = 25.0,
+		rim_w: float = 3.6, spin_deg: float = 12.0, tilt: Vector3 = Vector3(4.0, 0.0, -3.5),
+		beams: int = 2, audit: Array = []) -> ArmillaryRing:
+	var ar := ArmillaryRing.new()
+	ar.position = center
+	ar.ring_radius = radius
+	ar.rim_width = rim_w
+	ar.spin_speed_deg = spin_deg
+	ar.tilt_deg = tilt
+	ar.beam_count = beams
+	parent.add_child(ar)
+	audit.append({"pos": center, "kind": "armillary_ring", "radius": radius + rim_w * 0.5})
+	return ar
 
 
 static func set_realm_lod_mode(root: Node, is_distant: bool) -> void:

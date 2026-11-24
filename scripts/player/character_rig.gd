@@ -248,6 +248,10 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 	if state_name == "SLIDE":
 		body_pitch = 0.65
 		bob_y = -0.22
+	elif state_name == "GRIND":
+		body_pitch = -0.18
+		body_roll = sin(_anim_time * 9.0) * 0.14
+		bob_y = -0.06
 	elif state_name == "SKY_DIVE":
 		body_pitch = -1.05
 	elif state_name == "FLUTTER":
@@ -288,6 +292,10 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 	elif state_name == "SLIDE":
 		leg_swing = 0.65
 		arm_swing = -0.75
+	elif state_name == "GRIND":
+		leg_swing = 0.42
+		arm_swing = -0.25
+		arm_spread = 0.88
 	elif state_name == "SKY_DIVE":
 		leg_swing = 0.55
 		arm_swing = -1.35
@@ -367,7 +375,7 @@ func update_animation(vel: Vector3, move_dir: Vector3, is_floor: bool, state_nam
 
 
 func _update_ribbon_trail(spd: float, flow: float, state_name: String, delta: float) -> void:
-	var active := spd > 7.5 or flow > 0.22 or _solar_charged or state_name in ["DASH", "WALL_RUN", "TETHER_ZIP", "REWIND", "SKY_DIVE", "FLUTTER"]
+	var active := spd > 7.5 or flow > 0.22 or _solar_charged or state_name in ["DASH", "WALL_RUN", "TETHER_ZIP", "REWIND", "SKY_DIVE", "FLUTTER", "GRIND"]
 	_trail_timer += delta
 	if _trail_timer >= 0.016:
 		_trail_timer = 0.0

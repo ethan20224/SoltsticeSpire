@@ -16,10 +16,13 @@ var _gem_inst: MeshInstance3D
 var _halo_inst: MeshInstance3D
 var _collected: bool = false
 var _t: float = 0.0
+var _home_pos: Vector3 = Vector3.ZERO
+var _player_ref: Node3D = null
 
 
 func _ready() -> void:
 	add_to_group("solar_mote")
+	_home_pos = position
 	collision_layer = 0
 	collision_mask = 2
 	monitorable = false
@@ -122,6 +125,7 @@ func _on_solar_motes_changed(total: int) -> void:
 func reset_mote() -> void:
 	_collected = false
 	visible = true
+	position = _home_pos
 	scale = Vector3.ONE
 	if _visual_root:
 		_visual_root.scale = Vector3.ONE
@@ -170,3 +174,16 @@ func _process(delta: float) -> void:
 	if _halo_inst:
 		_halo_inst.rotation.y -= delta * 2.8
 		_halo_inst.rotation.z += delta * 1.4
+	# Solar Overdrive Mote Magnetism: pull nearby motes straight into the runner!
+	if GameState.solar_overdrive_active and not _collected:
+		if _player_ref == null or not is_instance_valid(_player_ref):
+			var p := get_tree().get_first_node_in_group("player")
+			if p is Node3D:
+				_player_ref = p as Node3D
+		if _player_ref != null:
+			var target := _player_ref.global_position + Vector3(0.0, 0.75, 0.0)
+			var d := global_position.distance_to(target)
+			if d < 7.2:
+				global_position = global_position.move_toward(target, delta * 26.0)
+				if d < 1.25:
+					_on_body_entered(_player_ref)

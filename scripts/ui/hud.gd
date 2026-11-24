@@ -119,6 +119,10 @@ var _rewind_fade_tween: Tween
 
 var _tether_reticle: PanelContainer
 var _tether_label: Label
+var _context_pill_center: CenterContainer
+var _context_pill: PanelContainer
+var _context_pill_label: Label
+var _trial_active: bool = false
 var _whisper_panel: PanelContainer
 var _whisper_row: HBoxContainer
 var _whisper_timer: float = 6.0
@@ -136,6 +140,10 @@ func _ready() -> void:
 	GameState.shard_collected.connect(_on_shards)
 	GameState.solar_motes_changed.connect(_on_solar_motes)
 	GameState.solar_charge_changed.connect(_on_solar_charge_changed)
+	GameState.solar_overdrive_changed.connect(_on_solar_overdrive_changed)
+	GameState.phase_toggled.connect(_on_phase_toggled)
+	GameState.monsoon_wind_changed.connect(_on_monsoon_wind_changed)
+	GameState.trial_state_changed.connect(_on_trial_state_changed)
 	GameState.rewind_window_changed.connect(_on_rewind_window_changed)
 	GameState.pilgrim_assist_offer_changed.connect(_on_pilgrim_assist_offer_changed)
 	GameState.gameplay_callout.connect(_on_gameplay_callout)
@@ -517,6 +525,29 @@ func _build_hud() -> void:
 	_tether_reticle.add_child(_tether_label)
 	add_child(_tether_reticle)
 
+	# CONTEXTUAL REALM / TRIAL STATUS PILL (Phase-Swap Glass, Monsoon Wind Gust, 10s Sun-Shard Trial)
+	_context_pill_center = CenterContainer.new()
+	_context_pill_center.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_context_pill_center.offset_top = 82
+	_context_pill_center.offset_bottom = 122
+	_context_pill_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_context_pill_center.visible = false
+	add_child(_context_pill_center)
+
+	_context_pill = PanelContainer.new()
+	_context_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_context_pill.add_theme_stylebox_override("panel", UITheme.glass_box(
+		Color(0.10, 0.08, 0.14, 0.88),
+		Color(0.95, 0.56, 0.90, 0.90),
+		999, 18, 6, 1
+	))
+	_context_pill_center.add_child(_context_pill)
+
+	_context_pill_label = Label.new()
+	_context_pill_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	UITheme.apply_font(_context_pill_label, "extrabold", 13, Color(1.0, 0.92, 0.96))
+	_context_pill.add_child(_context_pill_label)
+
 	_refresh_control_hints(false)
 
 
@@ -621,16 +652,82 @@ func _on_altitude(alt: float, _best: float) -> void:
 
 func _on_world_entered(idx: int, wname: String, sub: String) -> void:
 	show_world_toast(idx, wname, sub)
+	if not _trial_active:
+		if idx == 3 or idx == 5:
+			_on_phase_toggled(GameState.phase_state)
+		else:
+			_set_context_pill(false)
 
 
 func _on_flow(fv: float, streak: int) -> void:
 	_flow_bar.value = fv
 	if player_ref and is_instance_valid(player_ref) and player_ref.is_sky_focus_active():
 		_flow_label.text = "✦ SKY FOCUS · SLOW-MOTION"
+	elif GameState.solar_overdrive_active:
+		_flow_label.text = "☀ SOLAR OVERDRIVE · 2x DASH · %s SLOW-MO" % InputManager.get_glyph("focus")
 	elif _solar_charged:
 		_flow_label.text = "✦ SKY FOCUS READY · %s (Mid-Air)" % InputManager.get_glyph("focus")
 	else:
 		_flow_label.text = ("RESONANCE x%d" % streak) if streak > 0 else "SKY RESONANCE"
+
+
+func _on_solar_overdrive_changed(active: bool) -> void:
+	if active:
+		_flow_label.text = "☀ SOLAR OVERDRIVE · 2x DASH · %s SLOW-MO" % InputManager.get_glyph("focus")
+		_flow_label.add_theme_color_override("font_color", Color(1.0, 0.90, 0.36))
+		if _flow_fill_style:
+			_flow_fill_style.bg_color = Color(1.0, 0.84, 0.24)
+	else:
+		_on_solar_charge_changed(_solar_charged)
+
+
+func _set_context_pill(show: bool, text: String = "", accent: Color = Color(1.0, 0.84, 0.36)) -> void:
+	if _context_pill_center == null or _context_pill == null or _context_pill_label == null:
+		return
+	_context_pill_center.visible = show
+	if not show:
+		return
+	_context_pill_label.text = text
+	_context_pill_label.add_theme_color_override("font_color", accent.lightened(0.24))
+	_context_pill.add_theme_stylebox_override("panel", UITheme.glass_box(
+		Color(0.08, 0.07, 0.11, 0.88),
+		Color(accent.r, accent.g, accent.b, 0.92),
+		999, 18, 6, 1
+	))
+
+
+func _on_phase_toggled(new_phase: int) -> void:
+	if _trial_active:
+		return
+	if GameState.current_world_idx == 3 or GameState.current_world_idx == 5:
+		if new_phase == 0:
+			_set_context_pill(true, "◆ PHASE: ROSE GLASS SOLID  ·  Jump/Dash to Swap", Color(0.98, 0.45, 0.82))
+		else:
+			_set_context_pill(true, "◇ PHASE: CYAN GLASS SOLID  ·  Jump/Dash to Swap", Color(0.35, 0.92, 1.0))
+
+
+func _on_monsoon_wind_changed(phase_name: String, _dir: Vector3, _strength: float) -> void:
+	if _trial_active:
+		return
+	if GameState.current_world_idx != 2:
+		if _context_pill_center and _context_pill_center.visible and _context_pill_label.text.contains("MONSOON"):
+			_set_context_pill(false)
+		return
+	if phase_name == "telegraph":
+		_set_context_pill(true, "〰 MONSOON GUST BUILDING  ·  Use Cover or Ride Tailwind!", Color(0.55, 0.94, 1.0))
+	elif phase_name == "gust":
+		_set_context_pill(true, "💨 MONSOON GALE ACTIVE!  ·  Ride the Wind or Shelter!", Color(1.0, 0.82, 0.36))
+	else:
+		_set_context_pill(false)
+
+
+func _on_trial_state_changed(active: bool, title: String, collected: int, total: int, time_left: float) -> void:
+	_trial_active = active
+	if active:
+		var col := Color(1.0, 0.42, 0.30) if time_left < 3.0 else Color(1.0, 0.86, 0.34)
+		_set_context_pill(true, "✦ %s  ·  %d/%d RINGS  ·  %.1fs" % [title, collected, total, maxf(0.0, time_left)], col)
+	else:
+		_set_context_pill(false)
 
 
 func _on_solar_charge_changed(charged: bool) -> void:

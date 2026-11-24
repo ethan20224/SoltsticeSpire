@@ -7,7 +7,7 @@ class_name GauntletRunner
 ##    PLUS establishing wide shots for Worlds 1-6, and the panoramic Summit Look-Down vista!
 ## 3. Measures BOTH vsync-enabled and VSYNC_DISABLED true GPU frame time / FPS on Apple M2!
 
-const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/5eedaab6-bef9-4295-b630-bf7c0a9256bd/scratch/gauntlet"
+const OUT_DIR := "/Users/ethanpeleg/.gemini/antigravity/brain/cb9cf5bc-338b-4b7b-ae87-270534010d4c/scratch/gauntlet"
 
 
 func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerController,
@@ -32,6 +32,41 @@ func execute(main_node: Node3D, spire: SpireWorld, atmo: Node3D, player: PlayerC
 		get_tree().get_nodes_in_group("checkpoint_shrine").size(),
 		get_tree().get_nodes_in_group("sun_shard").size()
 	])
+	print("[GAUNTLET] New Interactive Mechanics Placed: DashPrisms=%d | MeteorTriggers=%d | SlideObstacles=%d | GrindRails=%d | MomentumRamps=%d | Seesaws=%d | ResonantTargets=%d | MonsoonWinds=%d | PhasePlatforms=%d | RideableWhales=%d | ArmillaryRings=%d | FlowExpress=%d | ShardTrials=%d" % [
+		get_tree().get_nodes_in_group("dash_prism").size(),
+		get_tree().get_nodes_in_group("meteor_trigger").size(),
+		get_tree().get_nodes_in_group("slide_obstacle").size(),
+		get_tree().get_nodes_in_group("grind_rail").size(),
+		get_tree().get_nodes_in_group("momentum_ramp").size(),
+		get_tree().get_nodes_in_group("seesaw_platform").size(),
+		get_tree().get_nodes_in_group("resonant_target").size(),
+		get_tree().get_nodes_in_group("monsoon_wind_zone").size(),
+		get_tree().get_nodes_in_group("phase_platform").size(),
+		get_tree().get_nodes_in_group("rideable_whale").size(),
+		get_tree().get_nodes_in_group("armillary_ring").size(),
+		get_tree().get_nodes_in_group("flow_express").size(),
+		get_tree().get_nodes_in_group("shard_trial").size(),
+	])
+
+	# Runtime behavioral checks on core mechanics
+	var mech_ok := true
+	var prev_phase := GameState.phase_state
+	GameState.toggle_phase()
+	if GameState.phase_state == prev_phase:
+		print("  [FAIL] Phase-swap toggle did not flip GameState.phase_state!")
+		mech_ok = false
+	GameState.toggle_phase()
+	GameState.set_solar_overdrive(true)
+	if not GameState.solar_overdrive_active:
+		print("  [FAIL] Solar Overdrive did not activate!")
+		mech_ok = false
+	GameState.set_solar_overdrive(false)
+	var rails := get_tree().get_nodes_in_group("grind_rail")
+	for r in rails:
+		if float(r.call("get_rail_length")) < 5.0:
+			print("  [FAIL] GrindRail has invalid short length!")
+			mech_ok = false
+	print("[GAUNTLET] Runtime Mechanics Self-Test PASSED: %s" % str(mech_ok))
 
 	for _i in range(6):
 		await get_tree().process_frame

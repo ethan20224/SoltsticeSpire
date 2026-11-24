@@ -21,6 +21,11 @@ signal graphics_settings_changed()
 signal badge_unlocked(badge_id: String, title: String, desc: String)
 signal cosmetic_changed()
 signal world_unlocked(world_idx: int)
+signal phase_toggled(new_phase: int)
+signal bell_resonated(bell_group: String, duration: float)
+signal solar_overdrive_changed(active: bool)
+signal monsoon_wind_changed(phase_name: String, wind_dir: Vector3, strength: float)
+signal trial_state_changed(active: bool, title: String, collected: int, total: int, time_left: float)
 
 const CHARACTERS := {
 	"pip": {
@@ -141,6 +146,11 @@ var rewind_window_active: bool = false
 var current_flow: float = 0.0
 var current_streak: int = 0
 var max_flow_streak: int = 0
+var phase_state: int = 0  # 0 = Rose Solid / Cyan Ghost, 1 = Cyan Solid / Rose Ghost
+var solar_overdrive_active: bool = false
+var monsoon_wind_phase: String = "calm"
+var monsoon_wind_dir: Vector3 = Vector3.ZERO
+var monsoon_wind_strength: float = 0.0
 
 var mouse_sensitivity: float = 0.0024
 var invert_y: bool = false
@@ -422,6 +432,11 @@ func reset_full_run() -> void:
 	solar_motes_changed.emit(0)
 	rewind_window_changed.emit(0.0, false)
 	solar_charge_changed.emit(false)
+	phase_state = 0
+	phase_toggled.emit(0)
+	set_solar_overdrive(false)
+	set_monsoon_wind("calm", Vector3.ZERO, 0.0)
+	trial_state_changed.emit(false, "", 0, 0, 0.0)
 
 
 func register_world_spawn(world_idx: int, cp_id: String, pos: Vector3, yaw: float = 0.0) -> void:
@@ -564,6 +579,33 @@ func set_rewind_window(rem: float, active: bool) -> void:
 	rewind_window_remaining = maxf(0.0, rem)
 	rewind_window_active = active
 	rewind_window_changed.emit(rewind_window_remaining, rewind_window_active)
+
+
+func toggle_phase() -> void:
+	phase_state = 1 - phase_state
+	phase_toggled.emit(phase_state)
+
+
+func emit_bell_resonance(bell_group: String, duration: float = 6.5) -> void:
+	bell_resonated.emit(bell_group, duration)
+
+
+func set_solar_overdrive(active: bool) -> void:
+	if solar_overdrive_active == active:
+		return
+	solar_overdrive_active = active
+	solar_overdrive_changed.emit(active)
+
+
+func set_monsoon_wind(phase_name: String, dir: Vector3, strength: float) -> void:
+	monsoon_wind_phase = phase_name
+	monsoon_wind_dir = dir
+	monsoon_wind_strength = strength
+	monsoon_wind_changed.emit(phase_name, dir, strength)
+
+
+func emit_trial_state(active: bool, title: String, collected: int, total: int, time_left: float) -> void:
+	trial_state_changed.emit(active, title, collected, total, time_left)
 
 
 func trigger_summit_victory() -> void:

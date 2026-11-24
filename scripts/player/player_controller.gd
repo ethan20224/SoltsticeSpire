@@ -11,7 +11,7 @@ signal high_water_passed(alt_m: float)
 signal victory_skydive_landed()
 signal pilgrim_shrine_warp_requested(cp: Dictionary)
 
-enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, SKY_DIVE, VICTORY_DIVE }
+enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, SKY_DIVE, VICTORY_DIVE, GRIND }
 
 # Core Tuned Kinematics (tight, predictable — NO involuntary Flow speed sabotage!)
 @export var walk_speed: float = 7.2
@@ -41,6 +41,7 @@ enum State { GROUNDED, AIR, SLIDE, DASH, WALL_RUN, MANTLE, TETHER_ZIP, REWIND, S
 @export var wall_kick_up: float = 12.2
 @export var wall_kick_out: float = 10.2
 
+@onready var body_col: CollisionShape3D = $CollisionShape3D
 @onready var camera_rig: CameraRig = $CameraRig
 @onready var char_rig: CharacterRig = $CharacterRig
 @onready var landing_ring: MeshInstance3D = $LandingRing
@@ -56,7 +57,22 @@ var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var _has_double_jump: bool = true
 var _has_air_dash: bool = true
+var _extra_air_dash: bool = false
+var _dash_grace_timer: float = 0.0
+var _dash_3d_vel: Vector3 = Vector3.ZERO
+var _is_crouched: bool = false
+var _knockback_cd: float = 0.0
 var _has_solar_charge: bool = false
+
+# Grind / Surf Rail
+var _active_rail: Node3D = null
+var _last_rail_obj: Object = null
+var _rail_dist: float = 0.0
+var _rail_dir: float = 1.0
+var _rail_speed: float = 21.0
+var _rail_cooldown: float = 0.0
+var _rail_ducking: bool = false
+var _rail_spark_timer: float = 0.0
 var _sky_focus_active: bool = false
 var _sky_focus_real_timer: float = 0.0
 var _prev_phone_focus_btn: bool = false
@@ -123,6 +139,7 @@ var _ghost_sample_timer: float = 0.0
 # World Environmental Modifiers
 var gravity_multiplier: float = 1.0
 var external_updraft: Vector3 = Vector3.ZERO
+var external_wind: Vector3 = Vector3.ZERO
 var _portal_cooldown: float = 0.0
 
 # Dopamine Flow Meter
@@ -217,6 +234,48 @@ func _set_fall_wind(intensity: float) -> void:
 
 func is_sky_dive_recent() -> bool:
 	return state == State.SKY_DIVE or _recent_sky_dive_timer > 0.0
+
+
+func is_dashing_or_recent() -> bool:
+	return state == State.DASH or _dash_grace_timer > 0.0
+
+
+func is_sliding_or_ducking() -> bool:
+	return state == State.SLIDE or (state == State.GRIND and _rail_ducking)
+
+
+func refill_air_moves() -> void:
+	_has_double_jump = true
+	_has_air_dash = true
+	_extra_air_dash = GameState.solar_overdrive_active
+
+
+func _set_crouched_collision(crouched: bool) -> void:
+	if _is_crouched == crouched or body_col == null:
+		return
+	_is_crouched = crouched
+	var cap := body_col.shape as CapsuleShape3D
+	if cap != null:
+		if crouched:
+			cap.height = 0.78
+			body_col.position.y = 0.39
+		else:
+			cap.height = 1.46
+			body_col.position.y = 0.73
+
+
+func _has_standing_headroom() -> bool:
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return true
+	var q := PhysicsRayQueryParameters3D.create(
+		global_position + Vector3(0.0, 0.55, 0.0),
+		global_position + Vector3(0.0, 1.48, 0.0),
+		1,
+		[get_rid()]
+	)
+	var hit := space.intersect_ray(q)
+	return hit.is_empty()
 
 
 func is_sky_focus_active() -> bool:
@@ -354,6 +413,9 @@ func _physics_process(delta: float) -> void:
 	_wall_cooldown = maxf(0.0, _wall_cooldown - delta)
 	_recent_sky_dive_timer = maxf(0.0, _recent_sky_dive_timer - delta)
 	_bounce_arc_timer = maxf(0.0, _bounce_arc_timer - delta)
+	_dash_grace_timer = maxf(0.0, _dash_grace_timer - delta)
+	_rail_cooldown = maxf(0.0, _rail_cooldown - delta)
+	_knockback_cd = maxf(0.0, _knockback_cd - delta)
 	_is_fluttering = false
 
 	# Count down active 30-second Shrine Rewind window (never active in Purist Mode)
@@ -443,6 +505,10 @@ func _physics_process(delta: float) -> void:
 		_process_victory_dive(delta)
 		return
 
+	if state == State.GRIND:
+		_process_grind(delta)
+		return
+
 	# True Vertical Fall Stakes: only auto-rewind in Cloud Sea (y < -14) or unrecoverable outer sky!
 	# In Purist Mode, safely drops you back to the Awakening Terrace (0m, World 1 start) instead of void soft-lock.
 	var radial := Vector2(global_position.x, global_position.z).length()
@@ -501,8 +567,11 @@ func _physics_process(delta: float) -> void:
 		if _hovered_tether_orb != null:
 			_start_tether_zip(_hovered_tether_orb)
 			return
-		elif _has_air_dash and state != State.DASH:
-			_start_dash(move_dir if move_dir.length_squared() > 0.01 else cam_fwd, false)
+		elif (_has_air_dash or _extra_air_dash) and state != State.DASH:
+			var use_extra := (not _has_air_dash) and _extra_air_dash
+			if use_extra:
+				_extra_air_dash = false
+			_start_dash(move_dir if move_dir.length_squared() > 0.01 else cam_fwd, use_extra)
 
 	# Sky-Dive entry while airborne & past apex / descending
 	if state == State.AIR and not is_on_floor() and velocity.y < 3.5 and _is_slide_held():
@@ -534,13 +603,19 @@ func _physics_process(delta: float) -> void:
 	if state == State.SKY_DIVE:
 		_recent_sky_dive_timer = 0.14
 
-	# Apply world updrafts smoothly
+	# Apply world updrafts & monsoon wind gusts smoothly
 	if external_updraft.length_squared() > 0.001:
 		if external_updraft.y > 0.1:
 			_can_jump_cut = false
 		velocity += external_updraft * delta
-		velocity.y = minf(velocity.y, 19.5)
+		velocity.y = minf(velocity.y, 21.5)
 		external_updraft = Vector3.ZERO
+	if external_wind.length_squared() > 0.001:
+		var wind_scale := 1.0 if not is_on_floor() else 0.55
+		velocity += external_wind * wind_scale * delta
+		external_wind = Vector3.ZERO
+
+	_set_crouched_collision(state == State.SLIDE)
 
 	var pre_move_horiz := Vector2(velocity.x, velocity.z).length()
 	var pre_move_state := state
@@ -553,10 +628,12 @@ func _physics_process(delta: float) -> void:
 		_coyote_timer = _get_effective_coyote_time()
 		_has_double_jump = true
 		_has_air_dash = true
+		_extra_air_dash = GameState.solar_overdrive_active
 		_can_jump_cut = false
 		_bounce_arc_timer = 0.0
 		_flutter_timer = 0.0
 		_last_wall_obj = null
+		_last_rail_obj = null
 		_peak_fall_speed = 0.0
 
 		if not _was_on_floor:
@@ -672,12 +749,19 @@ func _physics_process(delta: float) -> void:
 			if flow_value <= 0.02:
 				flow_streak = 0
 
-	if flow_value >= 0.85 and flow_streak >= 3 and not _has_solar_charge:
-		_has_solar_charge = true
-		GameState.solar_charge_changed.emit(true)
-		char_rig.set_solar_charge_glow(true)
-		AudioDirector.play_flow_chime(6, -1.5)
-		GameState.emit_callout("SKY FOCUS READY!", "Press %s mid-air for 1.5s Slow-Mo" % InputManager.get_glyph("focus"), Color(0.55, 0.94, 1.0))
+	if flow_value >= 0.85 and flow_streak >= 3:
+		if not GameState.solar_overdrive_active:
+			GameState.set_solar_overdrive(true)
+			_extra_air_dash = true
+		if not _has_solar_charge:
+			_has_solar_charge = true
+			GameState.solar_charge_changed.emit(true)
+			char_rig.set_solar_charge_glow(true)
+			AudioDirector.play_flow_chime(6, -1.5)
+			GameState.emit_callout("SOLAR OVERDRIVE!", "2x Air-Dash · Mote Magnet · Express Bridges · %s Slow-Mo" % InputManager.get_glyph("focus"), Color(1.0, 0.88, 0.36))
+	elif flow_value < 0.35 and GameState.solar_overdrive_active:
+		GameState.set_solar_overdrive(false)
+		_extra_air_dash = false
 
 	# Rhythmic Tactile Footsteps
 	if on_floor and state == State.GROUNDED and horiz_spd > 1.8:
@@ -702,7 +786,8 @@ func _process_standard_move(move_dir: Vector3, slide_pressed: bool, delta: float
 	# 100% predictable speed control: Flow (Solar Resonance) NEVER forces sprint or adds unwanted speed!
 	var gp_sprint := InputManager.is_gamepad_active() and InputManager.is_sprint_held()
 	var sprinting := Input.is_action_pressed("sprint") or gp_sprint or PhoneController.is_sprint_active()
-	var base_spd := sprint_speed if sprinting else walk_speed
+	var overdrive_sprint := sprint_speed * 1.12 if GameState.solar_overdrive_active else sprint_speed
+	var base_spd := overdrive_sprint if sprinting else walk_speed
 	var throttle := 1.0 if sprinting else clampf(_input_analog_mag, 0.20, 1.0)
 	var max_spd := base_spd * throttle
 	var eff_slide_speed := _get_effective_slide_speed()
@@ -765,6 +850,7 @@ func _process_standard_move(move_dir: Vector3, slide_pressed: bool, delta: float
 			_bounce_arc_timer = 0.0
 			_flutter_timer = 0.0
 			state = State.AIR
+			GameState.toggle_phase()
 			char_rig.trigger_squash(Vector3(0.80, 1.26, 0.80))
 			char_rig.emit_burst(Vector3(0.0, 0.08, 0.0))
 			AudioDirector.play_sfx("jump", -3.0, randf_range(0.96, 1.06))
@@ -779,6 +865,7 @@ func _process_standard_move(move_dir: Vector3, slide_pressed: bool, delta: float
 			_bounce_arc_timer = 0.0
 			_flutter_timer = 0.0
 			state = State.AIR
+			GameState.toggle_phase()
 			char_rig.trigger_double_jump_flip()
 			AudioDirector.play_sfx("double_jump", -2.5, randf_range(0.98, 1.08))
 			_play_chirp("hop")
@@ -958,7 +1045,7 @@ func _process_slide(move_dir: Vector3, delta: float) -> void:
 		velocity.y -= gravity_down * gravity_multiplier * delta
 
 	# Slide → Long-Jump Momentum Chain!
-	if _jump_buffer_timer > 0.0 and (_coyote_timer > 0.0 or is_on_floor()):
+	if _jump_buffer_timer > 0.0 and (_coyote_timer > 0.0 or is_on_floor()) and _has_standing_headroom():
 		_jump_buffer_timer = 0.0
 		_coyote_timer = 0.0
 		_can_jump_cut = false
@@ -966,6 +1053,7 @@ func _process_slide(move_dir: Vector3, delta: float) -> void:
 		_flutter_timer = 0.0
 		_had_chain_source = true
 		state = State.AIR
+		GameState.toggle_phase()
 		var long_spd := eff_slide_speed + _get_effective_slide_jump_bonus()
 		velocity.x = _slide_dir.x * long_spd
 		velocity.z = _slide_dir.z * long_spd
@@ -978,8 +1066,47 @@ func _process_slide(move_dir: Vector3, delta: float) -> void:
 		PhoneController.send_haptic("jump")
 		return
 
-	if _slide_timer <= 0.0 or not is_on_floor():
-		state = State.GROUNDED if is_on_floor() else State.AIR
+	if not is_on_floor():
+		state = State.AIR
+	elif _slide_timer <= 0.0:
+		if _has_standing_headroom():
+			state = State.GROUNDED
+		else:
+			# Keep sliding smoothly under low beams until headroom clears!
+			_slide_timer = 0.06
+			velocity.x = _slide_dir.x * maxf(spd, walk_speed * 1.15)
+			velocity.z = _slide_dir.z * maxf(spd, walk_speed * 1.15)
+
+
+func _find_best_dash_prism(aim_dir: Vector3) -> Node3D:
+	var prisms := get_tree().get_nodes_in_group("dash_prism")
+	if prisms.is_empty():
+		return null
+	var origin := global_position + Vector3(0.0, 0.75, 0.0)
+	var fwd := Vector3(aim_dir.x, 0.0, aim_dir.z).normalized()
+	if fwd.length_squared() < 0.01:
+		fwd = camera_rig.get_forward_xz()
+	var best: Node3D = null
+	var best_score := -1.0
+	for p_v in prisms:
+		var p := p_v as Node3D
+		if p == null or not p.visible or not p.has_method("is_available") or not p.call("is_available"):
+			continue
+		var to_p := p.global_position - origin
+		var dist := to_p.length()
+		if dist < 1.2 or dist > 11.5:
+			continue
+		var flat := Vector3(to_p.x, 0.0, to_p.z)
+		if flat.length_squared() < 0.01:
+			continue
+		var align := flat.normalized().dot(fwd)
+		if align < 0.56 or absf(to_p.y) > 4.6:
+			continue
+		var score := align * 2.0 - (dist / 11.5) * 0.7
+		if score > best_score:
+			best_score = score
+			best = p
+	return best
 
 
 func _start_dash(dir: Vector3, is_solar_dash: bool = false) -> void:
@@ -987,13 +1114,22 @@ func _start_dash(dir: Vector3, is_solar_dash: bool = false) -> void:
 	if not is_solar_dash:
 		_has_air_dash = false
 	_dash_timer = dash_duration
+	_dash_grace_timer = dash_duration + 0.18
 	_had_chain_source = true
+	GameState.toggle_phase()
 	_dash_dir = Vector3(dir.x, 0.0, dir.z).normalized()
 	if _dash_dir.length_squared() < 0.01:
 		_dash_dir = camera_rig.get_forward_xz()
 	var eff_dash := _get_effective_dash_speed() * (1.08 if is_solar_dash else 1.0)
-	velocity = _dash_dir * eff_dash
-	velocity.y = 2.2 if is_solar_dash else 1.4  # Tiny crisp anti-drop lift
+	var target_prism := _find_best_dash_prism(_dash_dir)
+	if target_prism != null:
+		var to_prism := (target_prism.global_position - (global_position + Vector3(0.0, 0.75, 0.0))).normalized()
+		_dash_dir = Vector3(to_prism.x, 0.0, to_prism.z).normalized()
+		_dash_3d_vel = to_prism * eff_dash
+		velocity = _dash_3d_vel
+	else:
+		_dash_3d_vel = Vector3(_dash_dir.x * eff_dash, 2.2 if is_solar_dash else 1.4, _dash_dir.z * eff_dash)
+		velocity = _dash_3d_vel
 	add_flow(0.18, false)
 	char_rig.trigger_squash(Vector3(0.74, 0.82, 1.42))
 	char_rig.emit_burst(Vector3(0.0, 0.65, 0.0))
@@ -1005,14 +1141,205 @@ func _start_dash(dir: Vector3, is_solar_dash: bool = false) -> void:
 
 func _process_dash(delta: float) -> void:
 	_dash_timer -= delta
-	var eff_dash := _get_effective_dash_speed()
-	velocity.x = _dash_dir.x * eff_dash
-	velocity.z = _dash_dir.z * eff_dash
-	velocity.y = lerpf(velocity.y, 0.0, clampf(delta * 10.0, 0.0, 1.0))
+	velocity.x = _dash_3d_vel.x
+	velocity.z = _dash_3d_vel.z
+	velocity.y = lerpf(velocity.y, _dash_3d_vel.y * 0.65, clampf(delta * 10.0, 0.0, 1.0))
 	if _dash_timer <= 0.0:
-		velocity.x = _dash_dir.x * (sprint_speed + 1.0)
-		velocity.z = _dash_dir.z * (sprint_speed + 1.0)
+		velocity.x = _dash_dir.x * (sprint_speed + 1.4)
+		velocity.z = _dash_dir.z * (sprint_speed + 1.4)
 		state = State.GROUNDED if is_on_floor() else State.AIR
+
+
+func on_dash_prism_shatter(prism_pos: Vector3, boost_up: float = 9.5) -> void:
+	refill_air_moves()
+	_dash_timer = 0.0
+	_dash_grace_timer = 0.14
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.35
+	_flutter_timer = 0.0
+	_had_chain_source = true
+	state = State.AIR
+	var fwd := _dash_dir if _dash_dir.length_squared() > 0.01 else camera_rig.get_forward_xz()
+	var carry := maxf(Vector2(velocity.x, velocity.z).length(), sprint_speed + 2.5)
+	carry = minf(carry, 18.0)
+	velocity.x = fwd.x * carry
+	velocity.z = fwd.z * carry
+	velocity.y = maxf(velocity.y, boost_up)
+	_try_trigger_clutch_save()
+	add_flow(0.26, true)
+	char_rig.trigger_double_jump_flip()
+	char_rig.emit_burst(Vector3(0.0, 0.55, 0.0))
+	camera_rig.add_shake(0.32)
+	camera_rig.trigger_hitstop(0.032)
+	PhoneController.send_haptic("tether")
+	InputManager.rumble("dash")
+	var _unused := prism_pos
+
+
+func start_grind_rail(rail: Node3D, start_dist: float, dir_sign: float, rail_speed: float = 21.0) -> bool:
+	if _rail_cooldown > 0.0 and rail == _last_rail_obj:
+		return false
+	if state in [State.REWIND, State.VICTORY_DIVE, State.TETHER_ZIP, State.GRIND]:
+		return false
+	state = State.GRIND
+	_active_rail = rail
+	_last_rail_obj = rail
+	_rail_dist = start_dist
+	_rail_dir = 1.0 if dir_sign >= 0.0 else -1.0
+	_rail_speed = maxf(rail_speed, Vector2(velocity.x, velocity.z).length() + 3.0)
+	_rail_ducking = false
+	_rail_spark_timer = 0.0
+	refill_air_moves()
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.0
+	_flutter_timer = 0.0
+	_had_chain_source = true
+	_try_trigger_clutch_save()
+	add_flow(0.24, true)
+	char_rig.trigger_squash(Vector3(1.18, 0.82, 1.18))
+	char_rig.emit_burst(Vector3(0.0, 0.12, 0.0))
+	camera_rig.add_shake(0.20)
+	AudioDirector.play_sfx("slide", -2.5, 1.28)
+	PhoneController.send_haptic("slide")
+	return true
+
+
+func _process_grind(delta: float) -> void:
+	if not is_instance_valid(_active_rail) or not _active_rail.has_method("sample_at_distance"):
+		state = State.AIR
+		_set_crouched_collision(false)
+		return
+
+	# Check inputs during Grind
+	var input_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if InputManager.is_gamepad_active():
+		var gp_vec := InputManager.get_move_vector()
+		if gp_vec.length_squared() > input_vec.length_squared():
+			input_vec = gp_vec
+	if PhoneController.is_active():
+		var p_vec := PhoneController.get_move_vector()
+		if p_vec.length_squared() > input_vec.length_squared():
+			input_vec = p_vec
+	var cam_fwd := camera_rig.get_forward_xz()
+	var cam_right := camera_rig.get_right_xz()
+	var move_dir := (cam_right * input_vec.x - cam_fwd * input_vec.y)
+	if move_dir.length_squared() > 0.001:
+		move_dir = move_dir.normalized()
+
+	var jump_pressed := Input.is_action_just_pressed("jump") or PhoneController.consume_jump_just_pressed() or InputManager.consume_jump_just_pressed()
+	_rail_ducking = _is_slide_held()
+	_set_crouched_collision(_rail_ducking)
+
+	var total_len: float = float(_active_rail.call("get_rail_length"))
+	_rail_dist += _rail_dir * _rail_speed * delta
+	var sample: Dictionary = _active_rail.call("sample_at_distance", clampf(_rail_dist, 0.0, total_len))
+	var pt: Vector3 = sample["pos"]
+	var tan_dir: Vector3 = (sample["tangent"] as Vector3) * _rail_dir
+	if tan_dir.length_squared() < 0.001:
+		tan_dir = cam_fwd
+	tan_dir = tan_dir.normalized()
+
+	global_position = pt + Vector3(0.0, 0.14, 0.0)
+	velocity = tan_dir * _rail_speed
+
+	# Continuous flow + grind sparks
+	flow_value = minf(1.0, flow_value + delta * 0.24)
+	_flow_decay_delay = 2.0
+	_rail_spark_timer += delta
+	if _rail_spark_timer >= 0.16:
+		_rail_spark_timer = 0.0
+		char_rig.emit_burst(Vector3(0.0, 0.06, 0.0))
+
+	# Jump off rail (retains rail speed + optional lateral steer + vertical pop!)
+	if jump_pressed or _jump_buffer_timer > 0.0:
+		_jump_buffer_timer = 0.0
+		_rail_cooldown = 0.30
+		_active_rail = null
+		_rail_ducking = false
+		_set_crouched_collision(false)
+		state = State.AIR
+		refill_air_moves()
+		GameState.toggle_phase()
+		var launch_h := Vector3(tan_dir.x, 0.0, tan_dir.z).normalized() * maxf(_rail_speed * 0.84, sprint_speed + 2.5)
+		if move_dir.length_squared() > 0.05:
+			launch_h = (launch_h * 0.72 + move_dir * (_rail_speed * 0.38))
+		velocity = Vector3(launch_h.x, jump_velocity * 1.06, launch_h.z)
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.40
+		add_flow(0.22, true)
+		char_rig.trigger_squash(Vector3(0.78, 1.32, 0.78))
+		AudioDirector.play_sfx("jump", -1.5, 1.15)
+		PhoneController.send_haptic("jump")
+		return
+
+	# Reached end of rail -> heroic catapult launch!
+	if _rail_dist >= total_len or _rail_dist <= 0.0:
+		var end_boost_up: float = float(_active_rail.call("get_end_boost_up")) if _active_rail.has_method("get_end_boost_up") else 10.5
+		_rail_cooldown = 0.32
+		_active_rail = null
+		_rail_ducking = false
+		_set_crouched_collision(false)
+		state = State.AIR
+		refill_air_moves()
+		velocity = tan_dir * (_rail_speed * 0.88)
+		velocity.y = maxf(velocity.y, end_boost_up)
+		_can_jump_cut = false
+		_bounce_arc_timer = 0.55
+		add_flow(0.28, true)
+		char_rig.trigger_double_jump_flip()
+		camera_rig.add_shake(0.24)
+		AudioDirector.play_sfx("dash", -2.0, 1.14)
+		PhoneController.send_haptic("tether")
+		return
+
+	# Update HUD, altitude, camera, and grinding visuals!
+	GameState.update_altitude(global_position.y)
+	GameState.update_flow(flow_value, flow_streak)
+	_update_landing_ring()
+	var lean := clampf(input_vec.x * -8.5, -9.0, 9.0)
+	camera_rig.update_rig(global_position, velocity, maxf(flow_value, 0.65), lean, true, delta)
+	var anim_st := "SLIDE" if _rail_ducking else "GRIND"
+	char_rig.update_animation(velocity, tan_dir, true, anim_st, 0.0, maxf(flow_value, 0.7), delta)
+
+
+func apply_knockback(impulse: Vector3) -> void:
+	if _knockback_cd > 0.0 or state in [State.REWIND, State.VICTORY_DIVE]:
+		return
+	_knockback_cd = 0.45
+	if state == State.GRIND:
+		_active_rail = null
+		_rail_cooldown = 0.35
+		_rail_ducking = false
+		_set_crouched_collision(false)
+	state = State.AIR
+	velocity = impulse
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.25
+	char_rig.trigger_squash(Vector3(1.32, 0.72, 1.32))
+	char_rig.emit_burst(Vector3(0.0, 0.65, 0.0))
+	camera_rig.add_shake(0.45)
+	camera_rig.trigger_hitstop(0.030)
+	AudioDirector.play_sfx("land_thud", -1.5, 0.72)
+	InputManager.rumble("land")
+	PhoneController.send_haptic("land")
+
+
+func apply_ramp_boost(boost_vel: Vector3) -> void:
+	if state in [State.REWIND, State.VICTORY_DIVE]:
+		return
+	state = State.AIR
+	velocity = boost_vel
+	refill_air_moves()
+	_can_jump_cut = false
+	_bounce_arc_timer = 0.65
+	_had_chain_source = true
+	add_flow(0.30, true)
+	char_rig.trigger_double_jump_flip()
+	char_rig.emit_burst(Vector3(0.0, 0.25, 0.0))
+	camera_rig.add_shake(0.32)
+	camera_rig.trigger_hitstop(0.028)
+	AudioDirector.play_sfx("dash", -1.0, 1.22)
+	PhoneController.send_haptic("tether")
 
 
 func _try_trigger_clutch_save() -> void:
@@ -1104,10 +1431,12 @@ func _process_wall_run(_move_dir: Vector3, delta: float) -> void:
 		_wall_cooldown = 0.22
 		_has_air_dash = true
 		_has_double_jump = true
+		_extra_air_dash = GameState.solar_overdrive_active
 		_can_jump_cut = false
 		_bounce_arc_timer = 0.0
 		_flutter_timer = 0.0
 		_had_chain_source = true
+		GameState.toggle_phase()
 		velocity = tangent * (run_spd * 0.92) + _wall_normal * wall_kick_out + Vector3(0.0, wall_kick_up, 0.0)
 		add_flow(0.28, true)
 		char_rig.trigger_squash(Vector3(0.78, 1.30, 0.78))
@@ -1236,6 +1565,10 @@ func begin_rewind_respawn(count_as_fall: bool = true) -> void:
 	if state == State.REWIND:
 		return
 	state = State.REWIND
+	_active_rail = null
+	_rail_ducking = false
+	_set_crouched_collision(false)
+	external_wind = Vector3.ZERO
 	_unrecoverable_sky_timer = 0.0
 	_rewind_locked_out = false
 	GameState.set_rewind_window(0.0, false)
@@ -1243,6 +1576,8 @@ func begin_rewind_respawn(count_as_fall: bool = true) -> void:
 		GameState.record_fall()
 	flow_value = 0.0
 	flow_streak = 0
+	_extra_air_dash = false
+	GameState.set_solar_overdrive(false)
 	if _has_solar_charge:
 		_has_solar_charge = false
 		GameState.solar_charge_changed.emit(false)
@@ -1340,18 +1675,27 @@ func apply_bounce(impulse: Vector3, reset_air: bool = true, is_meteor: bool = fa
 		camera_rig.trigger_hitstop(0.028)
 
 
-func apply_portal_warp(dest_pos: Vector3, exit_dir: Vector3, launch_speed: float) -> void:
+func apply_portal_warp(dest_pos: Vector3, exit_dir: Vector3, launch_speed: float, preserve_entry_speed: bool = false) -> void:
 	if _portal_cooldown > 0.0:
 		return
-	_portal_cooldown = 0.55
+	_portal_cooldown = 0.50
+	var entry_spd := velocity.length()
+	if state == State.SKY_DIVE:
+		entry_spd = maxf(entry_spd, 30.0)
 	global_position = dest_pos
 	var dir := exit_dir.normalized()
-	velocity = dir * maxf(velocity.length() * 1.15, launch_speed)
-	velocity.y = maxf(velocity.y, 7.5)
-	_has_double_jump = true
-	_has_air_dash = true
+	var final_spd := maxf(entry_spd * (1.28 if preserve_entry_speed else 1.15), launch_speed)
+	if preserve_entry_speed:
+		final_spd = clampf(final_spd, launch_speed, 44.0)
+		velocity = dir * final_spd
+		if entry_spd >= 18.0:
+			GameState.emit_callout("MOMENTUM FLING!", "%.0f m/s PORTAL SLINGSHOT" % final_spd, Color(0.98, 0.62, 1.0))
+	else:
+		velocity = dir * final_spd
+		velocity.y = maxf(velocity.y, 7.5)
+	refill_air_moves()
 	_can_jump_cut = false
-	_bounce_arc_timer = 0.45
+	_bounce_arc_timer = 0.62 if preserve_entry_speed else 0.45
 	_flutter_timer = 0.0
 	_peak_fall_speed = 0.0
 	_had_chain_source = true
@@ -1360,13 +1704,18 @@ func apply_portal_warp(dest_pos: Vector3, exit_dir: Vector3, launch_speed: float
 	char_rig.clear_trail()
 	char_rig.trigger_double_jump_flip()
 	camera_rig.yaw = atan2(-dir.x, -dir.z)
-	camera_rig.add_shake(0.40)
+	camera_rig.add_shake(0.42)
 	camera_rig.trigger_hitstop(0.032)
-	AudioDirector.play_sfx("portal_warp", -1.0, 1.0)
+	AudioDirector.play_sfx("portal_warp", -1.0, 1.08 if preserve_entry_speed else 1.0)
 
 
 func teleport_to_checkpoint(pos: Vector3, yaw_rad: float = 0.0) -> void:
 	_end_sky_focus()
+	_active_rail = null
+	_last_rail_obj = null
+	_rail_ducking = false
+	_set_crouched_collision(false)
+	external_wind = Vector3.ZERO
 	GameState.victory_skydive_active = false
 	global_position = pos + Vector3(0.0, 0.35, 0.0)
 	velocity = Vector3.ZERO
